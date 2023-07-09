@@ -28,11 +28,7 @@ WebservConfig::WebservConfig(char const *ConfigFileName) {
 		line.erase(0, line.find_first_not_of(" \t\n"));
 		line.erase(line.find_last_not_of(" \t\n") + 1);
 
-		if (line.empty()) {
-			continue;
-		}
-
-		if (line[0] == '#') {
+		if (line.empty() || line[0] == '#') {
 			continue;
 		}
 
@@ -63,11 +59,7 @@ WebservConfig::WebservConfig(char const *ConfigFileName) {
 					break;
 				}
 
-				if (line.empty()) {
-					continue;
-				}
-
-				if (line[0] == '#') {
+				if (line.empty() || line[0] == '#') {
 					continue;
 				}
 
@@ -95,11 +87,7 @@ WebservConfig::WebservConfig(char const *ConfigFileName) {
 							break;
 						}
 
-						if (line.empty()) {
-							continue;
-						}
-
-						if (line[0] == '#') {
+						if (line.empty() || line[0] == '#') {
 							continue;
 						}
 
@@ -138,11 +126,7 @@ WebservConfig::WebservConfig(char const *ConfigFileName) {
 									break;
 								}
 
-								if (line.empty()) {
-									continue;
-								}
-
-								if (line[0] == '#') {
+								if (line.empty() || line[0] == '#') {
 									continue;
 								}
 
