@@ -1,7 +1,8 @@
 #include <iostream>
 #include <unistd.h>
-#include <sys/event.h>
 #include "WebservConfig.hpp"
+
+#define BUFFER_SIZE 1024
 
 void listenPort(Server const & server) {
 
@@ -17,45 +18,17 @@ void listenPort(Server const & server) {
 		exit(EXIT_FAILURE);
 	}
 
-		std::cout << "Listening on port " << server.port << "..." << std::endl;
+	std::cout << "Listening on port " << server.port << "..." << std::endl;
 
 }
-
-// int signal_perso(int sigint, int close_ctrl) {
-// 	if (sigint == 2) {
-// 		std::cout << "changement de close_ctrl" << std::endl;
-// 		close_ctrl = 1;
-// 	}
-// 	return close_ctrl;
-// }
-
-// void handle_signal(int signal, int server_fd) {
-// 	if (signal == SIGINT) {
-// 		std::cout << "Signal d'arrêt reçu. Arrêt du programme..." << std::endl;
-// 		close(server_fd);
-// 		exit(0);  // Terminaison du programme
-// 	}
-// }
 
 void launchServer(Server const & server) {
 
 	listenPort(server);
 
-	// std::string	resp_header = "HTTP/1.1 200 OK\r\nServer: WebServ\r\nContent-Type: text/html\r\n\r\n";
-
 	std::cout << "Starting server on " << server.port << std::endl;
 
-	// kevent()
-
 	while (true) {
-
-		// signal(SIGINT, handle_signal);
-		// signal(SIGINT, [&server](int signal) { handle_signal(signal, server.fd); });
-		int close_ctrl = 0;
-		// signal_perso(SIGINT, close_ctrl);
-
-
-
 
 		sockaddr_in clientAddress;
 		socklen_t clientAddressLength = sizeof(clientAddress);
@@ -70,26 +43,39 @@ void launchServer(Server const & server) {
 			exit(EXIT_FAILURE);
 		}
 
+		std::cout << "\r\e[KRequest received on port " << server.port << std::endl;
+
 		std::cout << "\r\e[KReading request..." << std::flush;
 
 		std::string request;
-		char buffer[1024];
-		while (read(clientSocket, buffer, 1024) == 1024) {
-			request += buffer;
-		}
-		request += buffer;
 
-		std::cout << "\r\e[KClient connected to port " << server.port << std::endl;
+		while (request.find("\r\n\r\n") == std::string::npos) {
+
+			char buffer[BUFFER_SIZE];
+
+			ssize_t bytesRead = recv(clientSocket, buffer, sizeof(buffer) - 1, 0);
+
+			if (bytesRead == -1) {
+				std::cerr << "Failed to read request." << std::endl;
+				close(clientSocket);
+				exit(EXIT_FAILURE);
+			}
+
+			buffer[bytesRead] = '\0';
+
+			request += buffer;
+
+		}
+
+		std::cout << "\r\e[KRequest read:\e[1;33m" << std::endl << request << "\e[0m";
+
+		// TODO: Handle request
+
+		std::cout << "\r\e[KSending response..." << std::flush;
 
 		write(clientSocket, "HTTP/1.1 200 OK\r\n\r\nHello, World!\r\n", 34);
 
-		// if (request.find("GET / "))
-		// {
-		// 	std::string indexContent = resp_header + "\r\n" + "<html><head></head><body><h1>Hello World<h1></body></html>";
-		// 	// std::cout << YELLOW << readIndexFile() << RESET << std::endl;
-		// 	// std::cout << "to send : " << resp_header << "\r\n" << indexContent << std::endl;
-		// 	write(clientSocket, indexContent.c_str(), indexContent.length());
-		// }
+		std::cout << "\r\e[KResponse sent" << std::endl;
 
 		close(clientSocket);
 	}
