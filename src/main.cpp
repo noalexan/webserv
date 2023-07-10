@@ -17,7 +17,7 @@ void listenPort(Server const & server) {
         exit(1);
     }
 
-    std::cout << "Listening on port 8080..." << std::endl;
+    std::cout << "Listening on port " << server.port << "..." << std::endl;
 
 }
 
