@@ -43,6 +43,7 @@ WebservConfig::WebservConfig(char const *ConfigFileName) {
 
 			if (getWord(line) != "{" || getWord(line).length()) {
 				std::cerr << "Error: " << line_number << ": invalid line" << std::endl;
+				ConfigFile.close();
 				exit(1);
 			}
 
@@ -69,6 +70,7 @@ WebservConfig::WebservConfig(char const *ConfigFileName) {
 
 					if (getWord(line) != "{" || getWord(line).length()) {
 						std::cerr << "Error: " << line_number << ": invalid line" << std::endl;
+						ConfigFile.close();
 						exit(1);
 					}
 
@@ -98,6 +100,7 @@ WebservConfig::WebservConfig(char const *ConfigFileName) {
 							try { server.port = std::stoi(listen); }
 							catch (std::exception &) {
 								std::cerr << "Error: " << line_number << ": invalid port" << std::endl;
+								ConfigFile.close();
 								exit(1);
 							}
 							std::cout << "port: " << server.port << std::endl;
@@ -111,6 +114,7 @@ WebservConfig::WebservConfig(char const *ConfigFileName) {
 
 							if (getWord(line) != "{" || getWord(line).length()) {
 								std::cerr << "Error: " << line_number << ": invalid line" << std::endl;
+								ConfigFile.close();
 								exit(1);
 							}
 
@@ -146,6 +150,7 @@ WebservConfig::WebservConfig(char const *ConfigFileName) {
 									while ((index = getWord(line)).length()) location.indexes.push_back(index);
 								} else {
 									std::cerr << "Error: " << line_number << ": unrecognized location rule" << std::endl;
+									ConfigFile.close();
 									exit(1);
 									continue;
 								}
@@ -158,11 +163,18 @@ WebservConfig::WebservConfig(char const *ConfigFileName) {
 
 						} else {
 							std::cerr << "Error: " << line_number << ": unrecognized server rule" << std::endl;
+							ConfigFile.close();
 							exit(1);
 							continue;
 						}
 
 					}
+
+					server.address.sin_family = AF_INET;
+					server.address.sin_port = htons(server.port);
+					server.address.sin_addr.s_addr = htonl(INADDR_ANY);
+
+					server.fd = socket(AF_INET, SOCK_STREAM, 0);
 
 					_servers.push_back(server);
 
@@ -170,6 +182,7 @@ WebservConfig::WebservConfig(char const *ConfigFileName) {
 
 				} else {
 					std::cerr << "Error: " << line_number << ": unrecognized http rule" << std::endl;
+					ConfigFile.close();
 					exit(1);
 					continue;
 				}
@@ -180,6 +193,7 @@ WebservConfig::WebservConfig(char const *ConfigFileName) {
 
 		} else {
 			std::cerr << "Error: " << line_number << ": unrecognized rule" << std::endl;
+			ConfigFile.close();
 			exit(1);
 			continue;
 		}
