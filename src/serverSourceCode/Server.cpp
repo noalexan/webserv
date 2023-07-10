@@ -12,7 +12,7 @@
 
 #include "Server.hpp"
 
-struct Server	ServerConstruct( int domain, int service, int protocole, u_long interface, int port, int backlog, void (*launch)(struct Server *server) ) {
+struct Server	ServerConstruct( int domain, int service, int protocole, u_long interface, int port, int backlog, void (*launch)(struct Server *server, char **) ) {
 
 	struct Server	server;
 

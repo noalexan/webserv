@@ -95,12 +95,16 @@ WebservConfig::WebservConfig(char const *ConfigFileName) {
 
 						if (word == "listen") {
 							std::string listen = getWord(line);
-							std::cout << "listen: " << listen << std::endl;
-							server.port = std::stoi(listen);
+							try { server.port = std::stoi(listen); }
+							catch (std::exception &) {
+								std::cerr << "Error: " << line_number << ": invalid port" << std::endl;
+								exit(1);
+							}
+							std::cout << "port: " << server.port << std::endl;
 						} else if (word == "server_name") {
-							std::string server_name = getWord(line);
-							std::cout << "server_name: " << server_name << std::endl;
-							server.host = server_name;
+							std::string host;
+							std::cout << "hosts: " << line << std::endl;
+							while ((host = getWord(line)).length()) server.hosts.push_back(host);
 						} else if (word == "location") {
 
 							std::string location_path = getWord(line);

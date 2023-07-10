@@ -44,7 +44,7 @@
 # include <netinet/in.h>
 
 # define ERROR_EXIT 1
-# define PUBLIC_DIR std::string("public")
+# define PUBLIC_DIR std::string("/Users/noahalexandre/Desktop/webserv/public")
 
 
 typedef struct Server {
@@ -60,10 +60,10 @@ typedef struct Server {
 
 	int		sockfd;
 
-	void	(*launch)(struct Server *server);
+	void	(*launch)(struct Server *server, char **);
 
 }	Server;
 
-struct Server	ServerConstruct( int domain, int service, int protocole, u_long interface, int port, int backlog, void (*launch)(struct Server *server) );
+struct Server	ServerConstruct( int domain, int service, int protocole, u_long interface, int port, int backlog, void (*launch)(struct Server *server, char **) );
 
 #endif /* Server.hpp */

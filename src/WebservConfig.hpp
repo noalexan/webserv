@@ -11,7 +11,7 @@ struct Location {
 };
 
 struct Server {
-	std::string host;
+	std::deque<std::string> hosts;
 	int port;
 	std::map<std::string, Location> locations;
 };
@@ -25,6 +25,7 @@ class WebservConfig {
 		WebservConfig(char const * ConfigFileName);
 
 		std::deque<Server> & servers() { return _servers; }
+		std::deque<Server> const & servers() const { return _servers; }
 
 };
 
