@@ -1,8 +1,31 @@
+#include "WebservConfig.hpp"
+#include "Request.hpp"
+
 #include <iostream>
 #include <unistd.h>
-#include "WebservConfig.hpp"
+#include <sys/stat.h>
 
 #define BUFFER_SIZE 1024
+
+bool pathExists(std::string const & path) {
+	return access(path.c_str(), R_OK) != -1;
+}
+
+bool isDirectory(std::string const & path) {
+	struct stat st;
+	if (stat(path.c_str(), &st) == 0) {
+		return S_ISDIR(st.st_mode);
+	}
+	return false;
+}
+
+bool isFile(std::string const & path) {
+	struct stat st;
+	if (stat(path.c_str(), &st) == 0) {
+		return S_ISREG(st.st_mode);
+	}
+	return false;
+}
 
 void listenPort(Server const & server) {
 
@@ -33,19 +56,19 @@ void launchServer(Server const & server) {
 		sockaddr_in clientAddress;
 		socklen_t clientAddressLength = sizeof(clientAddress);
 
-		std::cout << "\r\e[KWaiting for connection..." << std::flush;
+		std::cout << "\r\e[K\e[1;36mWaiting for connection...\e[0m" << std::flush;
 
 		int clientSocket = accept(server.fd, (sockaddr *) &clientAddress, &clientAddressLength);
 
 		if (clientSocket == -1) {
 			std::cerr << "Failed to accept client connection." << std::endl;
 			close(server.fd);
-			exit(EXIT_FAILURE);
+			continue;
 		}
 
 		std::cout << "\r\e[KRequest received on port " << server.port << std::endl;
 
-		std::cout << "\r\e[KReading request..." << std::flush;
+		std::cout << "\r\e[K\e[1;36mReading request...\e[0m" << std::flush;
 
 		std::string request;
 
@@ -58,7 +81,7 @@ void launchServer(Server const & server) {
 			if (bytesRead == -1) {
 				std::cerr << "Failed to read request." << std::endl;
 				close(clientSocket);
-				exit(EXIT_FAILURE);
+				continue;
 			}
 
 			buffer[bytesRead] = '\0';
@@ -69,15 +92,96 @@ void launchServer(Server const & server) {
 
 		std::cout << "\r\e[KRequest read:\e[1;33m" << std::endl << request << "\e[0m";
 
-		// TODO: Handle request
+		std::cout << "\r\e[K\e[1;36mParsing request...\e[0m" << std::flush;
 
-		std::cout << "\r\e[KSending response..." << std::flush;
+		Request req(request);
 
+		std::cout << "\r\e[KRequest parsed" << std::endl;
+
+		std::cout << "\r\e[K\e[1;36mGetting root...\e[0m" << std::flush;
+
+		std::string uri(req.uri());
+
+		std::cout << "\r\e[K\e[1;35mchecking for location... (" << uri << ")\e[0m" << std::flush;
+
+		while (server.locations.find(uri) == server.locations.end()) {
+
+			if (uri.find('/') == std::string::npos) {
+				std::cerr << "Error: no location found for " << req.uri() << std::endl;
+				close(clientSocket);
+				break;
+			}
+
+			uri = uri.substr(0, uri.find_last_of('/'));
+
+			if (uri.empty()) uri = "/";
+
+			std::cout << "\r\e[K\e[1;35mchecking for location... (" << uri << ")\e[0m" << std::flush;
+
+		}
+
+		if (server.locations.find(uri) == server.locations.end()) {
+			continue;
+		}
+
+		Location const & location = server.locations.at(uri);
+		uri = req.uri().substr(uri.length());
+
+		std::cout << "\r\e[K\e[1;35mRoot: " << location.root << "\e[0m" << std::endl;
+
+		std::cout << "\r\e[KSearching for file " << location.root + uri << "..." << std::flush;
+
+		std::string filePath(location.root + uri);
+
+		if (!pathExists(filePath)) {
+
+			std::cout << "\r\e[K\e[1;35m" << filePath << " doesn't exists\e[0m" << std::endl;
+
+			std::cout << "\r\e[K\e[1;36mSending response...\e[0m" << std::flush;
+			write(clientSocket, "HTTP/1.1 404 Not Found\r\n\r\n404 Not Found!\r\n", 42);
+			std::cout << "\r\e[KResponse sent" << std::endl;
+			close(clientSocket);
+			continue;
+		}
+
+		if (isDirectory(filePath)) {
+
+			if (filePath[filePath.length() - 1] != '/')
+				filePath += '/';
+
+			for (std::deque<std::string>::const_iterator it = location.indexes.begin(); it != location.indexes.end(); ++it) {
+
+				if (isFile(filePath + *it)) {
+
+					filePath += *it;
+					break;
+
+				}
+
+			}
+
+		}
+
+		if (isDirectory(filePath)) {
+
+			std::cout << "\r\e[K\e[1;35m" << filePath << " is a Directory\e[0m" << std::endl;
+
+			std::cout << "\r\e[K\e[1;36mSending response...\e[0m" << std::flush;
+			write(clientSocket, "HTTP/1.1 403 Forbidden\r\n\r\n403 Forbidden!\r\n", 42);
+			std::cout << "\r\e[KResponse sent" << std::endl;
+			close(clientSocket);
+			continue;
+
+		}
+
+		std::cout << "\r\e[K\e[1;35mFile found: " << filePath << "\e[0m" << std::endl;
+
+		std::cout << "\r\e[K\e[1;36mSending response...\e[0m" << std::flush;
 		write(clientSocket, "HTTP/1.1 200 OK\r\n\r\nHello, World!\r\n", 34);
-
 		std::cout << "\r\e[KResponse sent" << std::endl;
 
 		close(clientSocket);
+
 	}
 
 }
@@ -106,4 +210,4 @@ int main(int argc, char** argv) {
 }
 
 // Authors : Charly Tardy, Marwan Ayoub, Noah Alexandre
-// Version : 0.3.0
+// Version : 0.4.0
