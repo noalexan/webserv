@@ -131,7 +131,12 @@ void launchServer(Server const & server) {
 
 		std::cout << "\r\e[KSearching for file " << location.root + uri << "..." << std::flush;
 
-		std::string filePath(location.root + uri);
+		std::string filePath(location.root);
+
+		if (filePath[filePath.length() - 1] != '/')
+			filePath += '/';
+
+		filePath += uri;
 
 		if (!pathExists(filePath)) {
 
