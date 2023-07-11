@@ -66,6 +66,11 @@ WebservConfig::WebservConfig(char const *ConfigFileName) {
 					continue;
 				}
 
+				if (line[line.length() - 1] != ';' && line[line.length() - 1] != '{' && line[line.length() - 1] != '}') {
+					std::cerr << "Error: " << line_number << ": missing ';' at the end of line" << std::endl;
+					exit(1);
+				}
+
 				std::string word = getWord(line);
 
 				if (word == "server") {
@@ -93,6 +98,11 @@ WebservConfig::WebservConfig(char const *ConfigFileName) {
 
 						if (line.empty() || line[0] == '#') {
 							continue;
+						}
+
+						if (line[line.length() - 1] != ';' && line[line.length() - 1] != '{' && line[line.length() - 1] != '}') {
+							std::cerr << "Error: " << line_number << ": missing ';' at the end of line" << std::endl;
+							exit(1);
 						}
 
 						std::string word = getWord(line);
@@ -140,6 +150,11 @@ WebservConfig::WebservConfig(char const *ConfigFileName) {
 									continue;
 								}
 
+								if (line[line.length() - 1] != ';') {
+									std::cerr << "Error: " << line_number << ": missing ';' at the end of line" << std::endl;
+									exit(1);
+								}
+
 								std::string word = getWord(line);
 
 								if (word == "root") {
@@ -184,6 +199,11 @@ WebservConfig::WebservConfig(char const *ConfigFileName) {
 					server.address.sin_addr.s_addr = htonl(INADDR_ANY);
 
 					server.fd = socket(AF_INET, SOCK_STREAM, 0);
+
+					if (server.fd == -1) {
+						std::cerr << "Failed to create socket." << std::endl;
+						exit(EXIT_FAILURE);
+					}
 
 					_servers.push_back(server);
 
