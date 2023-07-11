@@ -18,11 +18,6 @@ Request::Request(std::string & request) {
 	_version = request.substr(0, request.find("\r\n"));
 	request.erase(0, request.find("\r\n") + 2);
 
-	if (_method != "GET") {
-		std::cerr << "Error: not a GET request" << std::endl;
-		return;
-	}
-
 	std::string line;
 	while ((line = request.substr(0, request.find("\r\n"))).length()) {
 

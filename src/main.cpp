@@ -137,13 +137,21 @@ void launchServers(WebservConfig const & config) {
 
 			}
 
-			std::cout << "\r\e[KRequest read:\e[1;33m" << std::endl << request << "\e[0m";
+			std::cout << "\r\e[K\e[1;33m" << std::endl << request << "\e[0m";
 
 			std::cout << "\r\e[K\e[1;36mParsing request...\e[0m" << std::flush;
 
 			Request req(request);
 
 			std::cout << "\r\e[KRequest parsed" << std::endl;
+
+			if (req.method() != "GET") {
+				std::cout << "\r\e[K\e[1;36mSending response...\e[0m" << std::flush;
+				write(clientSocket, "HTTP/1.1 405 Method Not Allowed\r\n\r\n405 Method Not Allowed!\r\n", 60);
+				std::cout << "\r\e[KResponse sent" << std::endl;
+				close(clientSocket);
+				continue;
+			}
 
 			std::cout << "\r\e[K\e[1;36mGetting root...\e[0m" << std::flush;
 
