@@ -3,6 +3,8 @@
 #include <iostream>
 #include <fstream>
 
+bool pathExists(std::string const & path);
+
 static std::string getWord(std::string &line) {
 	std::string word;
 	line.erase(0, line.find_first_not_of(" \t\n"));
@@ -141,8 +143,15 @@ WebservConfig::WebservConfig(char const *ConfigFileName) {
 								std::string word = getWord(line);
 
 								if (word == "root") {
-									std::string root = getWord(line);
-									std::cout << "root: " << root << std::endl;
+									line.erase(0, line.find_first_not_of(" \t"));
+									std::string root = line.substr(0, line.find_last_of(';'));
+									std::cout << "root: '" << root << "'" << std::endl;
+
+									if (!pathExists(root)) {
+										std::cerr << "Error: " << line_number << ": root doesn't exists" << std::endl;
+										exit(1);
+									}
+
 									location.root = root;
 								} else if (word == "index") {
 									std::string index;
