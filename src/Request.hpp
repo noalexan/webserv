@@ -1,5 +1,8 @@
-#include <string>
-#include <map>
+#ifndef REQUEST_HPP
+# define REQUEST_HPP
+
+# include <string>
+# include <map>
 
 class Request {
 
@@ -22,3 +25,5 @@ class Request {
 		std::map<std::string, std::string> const & headers() const { return _headers; }
 
 };
+
+#endif
