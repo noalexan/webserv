@@ -36,6 +36,7 @@ WebservConfig::WebservConfig(char const *ConfigFileName) {
 
 		if (line[line.length() - 1] != ';' && line[line.length() - 1] != '{' && line[line.length() - 1] != '}') {
 			std::cerr << "Error: " << line_number << ": missing ';' at the end of line" << std::endl;
+			ConfigFile.close();
 			exit(1);
 		}
 
@@ -68,6 +69,7 @@ WebservConfig::WebservConfig(char const *ConfigFileName) {
 
 				if (line[line.length() - 1] != ';' && line[line.length() - 1] != '{' && line[line.length() - 1] != '}') {
 					std::cerr << "Error: " << line_number << ": missing ';' at the end of line" << std::endl;
+					ConfigFile.close();
 					exit(1);
 				}
 
@@ -102,6 +104,7 @@ WebservConfig::WebservConfig(char const *ConfigFileName) {
 
 						if (line[line.length() - 1] != ';' && line[line.length() - 1] != '{' && line[line.length() - 1] != '}') {
 							std::cerr << "Error: " << line_number << ": missing ';' at the end of line" << std::endl;
+							ConfigFile.close();
 							exit(1);
 						}
 
@@ -152,6 +155,7 @@ WebservConfig::WebservConfig(char const *ConfigFileName) {
 
 								if (line[line.length() - 1] != ';') {
 									std::cerr << "Error: " << line_number << ": missing ';' at the end of line" << std::endl;
+									ConfigFile.close();
 									exit(1);
 								}
 

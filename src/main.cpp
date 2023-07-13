@@ -31,6 +31,13 @@ bool isFile(std::string const & path) {
 
 void listenPort(Server const & server) {
 
+	int opt = 1;
+	if (setsockopt(server.fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1) {
+		std::cerr << "Failed to set socket options." << std::endl;
+		close(server.fd);
+		exit(EXIT_FAILURE);
+	}
+
 	if (bind(server.fd, (sockaddr*)&server.address, sizeof(server.address)) == -1) {
 		std::cerr << "Failed to bind socket to address." << std::endl;
 		close(server.fd);
@@ -71,15 +78,11 @@ void launchServers(WebservConfig const & config) {
 
 	std::cout << "Servers launched" << std::endl;
 
-	struct timespec timeout;
-	timeout.tv_sec = 5;
-	timeout.tv_nsec = 0;
-
 	while (true) {
 
 		std::cout << "\r\e[K\e[1;36mWaiting for connection...\e[0m" << std::flush;
 
-		int nevents = kevent(kq, nullptr, 0, events, MAX_EVENTS, &timeout);
+		int nevents = kevent(kq, nullptr, 0, events, MAX_EVENTS, nullptr);
 
 		if (nevents == -1) {
 			std::cerr << "Failed to wait for events." << std::endl;
