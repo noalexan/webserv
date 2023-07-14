@@ -1,5 +1,6 @@
 #include "WebservConfig.hpp"
 #include "Request.hpp"
+#include "Response.hpp"
 
 #include <iostream>
 #include <unistd.h>
@@ -57,6 +58,8 @@ void listenPort(Server const & server) {
 void launchServers(WebservConfig const & config) {
 
 	int kq = kqueue();
+
+	// std::string	
 
 	if (kq == -1) {
 		std::cerr << "Failed to create kqueue." << std::endl;
@@ -148,14 +151,6 @@ void launchServers(WebservConfig const & config) {
 
 			std::cout << "\r\e[KRequest parsed" << std::endl;
 
-			if (req.method() != "GET") {
-				std::cout << "\r\e[K\e[1;36mSending response...\e[0m" << std::flush;
-				write(clientSocket, "HTTP/1.1 405 Method Not Allowed\r\n\r\n405 Method Not Allowed!\r\n", 60);
-				std::cout << "\r\e[KResponse sent" << std::endl;
-				close(clientSocket);
-				continue;
-			}
-
 			std::cout << "\r\e[K\e[1;36mGetting root...\e[0m" << std::flush;
 
 			std::string uri(req.uri());
@@ -196,17 +191,6 @@ void launchServers(WebservConfig const & config) {
 
 			filePath += uri;
 
-			if (!pathExists(filePath)) {
-
-				std::cout << "\r\e[K\e[1;35m" << filePath << " doesn't exists\e[0m" << std::endl;
-
-				std::cout << "\r\e[K\e[1;36mSending response...\e[0m" << std::flush;
-				write(clientSocket, "HTTP/1.1 404 Not Found\r\n\r\n404 Not Found!\r\n", 42);
-				std::cout << "\r\e[KResponse sent" << std::endl;
-				close(clientSocket);
-				continue;
-			}
-
 			if (isDirectory(filePath)) {
 
 				if (filePath[filePath.length() - 1] != '/')
@@ -225,22 +209,12 @@ void launchServers(WebservConfig const & config) {
 
 			}
 
-			if (isDirectory(filePath)) {
-
-				std::cout << "\r\e[K\e[1;35m" << filePath << " is a Directory\e[0m" << std::endl;
-
-				std::cout << "\r\e[K\e[1;36mSending response...\e[0m" << std::flush;
-				write(clientSocket, "HTTP/1.1 403 Forbidden\r\n\r\n403 Forbidden!\r\n", 42);
-				std::cout << "\r\e[KResponse sent" << std::endl;
-				close(clientSocket);
-				continue;
-
-			}
-
 			std::cout << "\r\e[K\e[1;35mFile found: " << filePath << "\e[0m" << std::endl;
 
+			Response	resp( req, filePath );
+
 			std::cout << "\r\e[K\e[1;36mSending response...\e[0m" << std::flush;
-			write(clientSocket, "HTTP/1.1 200 OK\r\n\r\nHello, World!\r\n", 34);
+			write(clientSocket, resp.getResponse().c_str(), resp.getResponse().length());
 			std::cout << "\r\e[KResponse sent" << std::endl;
 
 			close(clientSocket);
