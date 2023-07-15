@@ -1,243 +1,204 @@
-#include "WebservConfig.hpp"
-#include "Request.hpp"
-#include "Response.hpp"
-
 #include <iostream>
 #include <unistd.h>
-#include <sys/stat.h>
 #include <sys/event.h>
+#include <ExitCode.hpp>
+#include <WebservConfig/WebservConfig.hpp>
 
-#define BUFFER_SIZE 1024
 #define MAX_EVENTS 10
+#define BUFFER_SIZE 1024
 
-bool pathExists(std::string const & path) {
-	return access(path.c_str(), R_OK) != -1;
-}
+void launch(WebservConfig const &config) {
 
-bool isDirectory(std::string const & path) {
-	struct stat st;
-	if (stat(path.c_str(), &st) == 0) {
-		return S_ISDIR(st.st_mode);
+	int kq = kqueue();
+	if (kq == -1) {
+		throw std::runtime_error("Error: kqueue() failed");
 	}
-	return false;
-}
 
-bool isFile(std::string const & path) {
-	struct stat st;
-	if (stat(path.c_str(), &st) == 0) {
-		return S_ISREG(st.st_mode);
+	struct kevent events[MAX_EVENTS];
+
+	for (std::deque<Server>::const_iterator it = config.servers().begin(); it != config.servers().end(); it++) {
+		EV_SET(&events[it->fd], it->fd, EVFILT_READ, EV_ADD, 0, 0, NULL);
+		if (kevent(kq, &events[it->fd], 1, NULL, 0, NULL) == -1) {
+			if (close(kq) == -1) {
+				std::cerr << "Error: close() failed" << std::endl;
+			}
+			throw std::runtime_error("Error: kevent() failed");
+		}
 	}
-	return false;
+
+	while (true) {
+
+		int nevents = kevent(kq, NULL, 0, events, MAX_EVENTS, NULL);
+		if (nevents == -1) {
+			if (close(kq) == -1) {
+				std::cerr << "Error: close() failed" << std::endl;
+			}
+			throw std::runtime_error("Error: kevent() failed");
+		}
+
+		for (int i = 0; i < nevents; i++) {
+
+			int fd = events[i].ident;
+
+			Server const *server = nullptr;
+			for (std::deque<Server>::const_iterator it = config.servers().begin(); it != config.servers().end(); it++) {
+				if (it->fd == fd) {
+					server = &(*it);
+					break;
+				}
+			}
+
+			if (server == nullptr) {
+				std::cerr << "Error: server not found" << std::endl;
+				continue;
+			}
+
+			if (events[i].flags & EV_EOF) {
+				std::cout << "Client disconnected" << std::endl;
+				continue;
+			}
+
+			if (events[i].flags & EV_ERROR) {
+				std::cerr << "Error: EV_ERROR" << std::endl;
+				continue;
+			}
+
+			int client_fd = accept(server->fd, nullptr, nullptr);
+			if (client_fd == -1) {
+				std::cerr << "Error: accept() failed" << std::endl;
+				continue;
+			}
+
+			char buffer[BUFFER_SIZE];
+			ssize_t bytes_read = read(client_fd, buffer, BUFFER_SIZE);
+			if (bytes_read == -1) {
+				std::cerr << "Error: read() failed" << std::endl;
+				if (close(client_fd) == -1) {
+					std::cerr << "Error: close() failed" << std::endl;
+				}
+				continue;
+			}
+
+			std::cout << "Received " << bytes_read << " bytes" << std::endl;
+			std::cout << buffer << std::endl;
+
+			std::string response =	"HTTP/1.1 200 OK\r\n"
+									"Content-Type: text/plain\r\n"
+									"Content-Length: 12\r\n"
+									"\r\n"
+									"Hello world!";
+
+			ssize_t bytes_written = write(client_fd, response.c_str(), response.length());
+			if (bytes_written == -1) {
+				std::cerr << "Error: write() failed" << std::endl;
+				if (close(client_fd) == -1) {
+					std::cerr << "Error: close() failed" << std::endl;
+				}
+				continue;
+			}
+
+			std::cout << "Sent " << bytes_written << " bytes" << std::endl;
+
+			if (close(client_fd) == -1) {
+				std::cerr << "Error: close() failed" << std::endl;
+			}
+
+		}
+
+	}
+
 }
 
-void listenPort(Server const & server) {
-
+void listen(Server const &server) {
+	
 	int opt = 1;
 	if (setsockopt(server.fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1) {
-		std::cerr << "Failed to set socket options." << std::endl;
-		close(server.fd);
-		exit(EXIT_FAILURE);
+		throw std::runtime_error("Error: setsockopt() failed");
 	}
 
-	if (bind(server.fd, (sockaddr*)&server.address, sizeof(server.address)) == -1) {
-		std::cerr << "Failed to bind socket to address." << std::endl;
-		close(server.fd);
-		exit(EXIT_FAILURE);
+	if (bind(server.fd, (struct sockaddr *)&server.address, sizeof(server.address)) == -1) {
+		throw std::runtime_error("Error: bind() failed");
 	}
 
-	if (listen(server.fd, MAX_EVENTS) == -1) {
-		std::cerr << "Failed to listen on socket." << std::endl;
-		close(server.fd);
-		exit(EXIT_FAILURE);
+	if (listen(server.fd, 10) == -1) {
+		throw std::runtime_error("Error: listen() failed");
 	}
 
 	std::cout << "Listening on port " << server.port << "..." << std::endl;
 
 }
 
-void launchServers(WebservConfig const & config) {
-
-	int kq = kqueue();
-
-	// std::string	
-
-	if (kq == -1) {
-		std::cerr << "Failed to create kqueue." << std::endl;
-		for (std::deque<Server>::const_iterator it = config.servers().begin(); it != config.servers().end(); ++it) close(it->fd);
-		exit(EXIT_FAILURE);
-	}
-
-	struct kevent events[MAX_EVENTS];
-
-	for (std::deque<Server>::const_iterator it = config.servers().begin(); it != config.servers().end(); ++it) {
-		listenPort(*it);
-		EV_SET(&events[it->fd], it->fd, EVFILT_READ, EV_ADD, 0, 0, nullptr);
-		if (kevent(kq, &events[it->fd], 1, nullptr, 0, nullptr) == -1) {
-			std::cerr << "Failed to register server (port: " << it->port << ") to kqueue." << std::endl;
-			for (std::deque<Server>::const_iterator it = config.servers().begin(); it != config.servers().end(); ++it) close(it->fd);
-			exit(EXIT_FAILURE);
+void cleanup(WebservConfig const &config) {
+	std::cout << "Cleaning up..." << std::endl;
+	for (std::deque<Server>::const_iterator it = config.servers().begin(); it != config.servers().end(); it++) {
+		std::cout << "Closing port " << it->port << "..." << std::endl;
+		if (close(it->fd) == -1) {
+			throw std::runtime_error("Error: close() failed");
 		}
 	}
-
-	std::cout << "Servers launched" << std::endl;
-
-	while (true) {
-
-		std::cout << "\r\e[K\e[1;36mWaiting for connection...\e[0m" << std::flush;
-
-		int nevents = kevent(kq, nullptr, 0, events, MAX_EVENTS, nullptr);
-
-		if (nevents == -1) {
-			std::cerr << "Failed to wait for events." << std::endl;
-			continue;
-		}
-
-		for (int i = 0; i < nevents; i++) {
-
-			int eventFd = events[i].ident;
-
-			Server const * server = nullptr;
-			for (std::deque<Server>::const_iterator it = config.servers().begin(); it != config.servers().end(); ++it) {
-				if (it->fd == eventFd) {
-					server = &*it;
-					break;
-				}
-			}
-
-			if (server == nullptr) {
-				std::cerr << "Failed to find server for event." << std::endl;
-				continue;
-			}
-
-			sockaddr_in clientAddress;
-			socklen_t clientAddressLength = sizeof(clientAddress);
-
-			int clientSocket = accept(server->fd, (sockaddr *) &clientAddress, &clientAddressLength);
-
-			if (clientSocket == -1) {
-				std::cerr << "Failed to accept client connection." << std::endl;
-				continue;
-			}
-
-			std::cout << "\r\e[KRequest received" << std::endl;
-
-			std::cout << "\r\e[K\e[1;36mReading request...\e[0m" << std::flush;
-
-			std::string request;
-
-			while (request.find("\r\n\r\n") == std::string::npos) {
-
-				char buffer[BUFFER_SIZE];
-
-				ssize_t bytesRead = recv(clientSocket, buffer, sizeof(buffer) - 1, 0);
-
-				if (bytesRead == -1) {
-					std::cerr << "Failed to read request." << std::endl;
-					close(clientSocket);
-					continue;
-				}
-
-				buffer[bytesRead] = '\0';
-
-				request += buffer;
-
-			}
-
-			std::cout << "\r\e[K\e[1;33m" << std::endl << request << "\e[0m";
-
-			std::cout << "\r\e[K\e[1;36mParsing request...\e[0m" << std::flush;
-
-			Request req(request);
-
-			std::cout << "\r\e[KRequest parsed" << std::endl;
-
-			std::cout << "\r\e[K\e[1;36mGetting root...\e[0m" << std::flush;
-
-			std::string uri(req.uri());
-
-			std::cout << "\r\e[K\e[1;35mchecking for location... (" << uri << ")\e[0m" << std::flush;
-
-			while (server->locations.find(uri) == server->locations.end()) {
-
-				if (uri.find('/') == std::string::npos) {
-					std::cerr << "Error: no location found for " << req.uri() << std::endl;
-					close(clientSocket);
-					break;
-				}
-
-				uri = uri.substr(0, uri.find_last_of('/'));
-
-				if (uri.empty()) uri = "/";
-
-				std::cout << "\r\e[K\e[1;35mchecking for location... (" << uri << ")\e[0m" << std::flush;
-
-			}
-
-			if (server->locations.find(uri) == server->locations.end()) {
-				continue;
-			}
-
-			Location const & location = server->locations.at(uri);
-			uri = req.uri().substr(uri.length());
-
-			std::cout << "\r\e[K\e[1;35mRoot: " << location.root << "\e[0m" << std::endl;
-
-			std::cout << "\r\e[KSearching for file " << location.root + uri << "..." << std::flush;
-
-			std::string filePath(location.root);
-
-			if (filePath[filePath.length() - 1] != '/')
-				filePath += '/';
-
-			filePath += uri;
-
-			if (isDirectory(filePath)) {
-
-				if (filePath[filePath.length() - 1] != '/')
-					filePath += '/';
-
-				for (std::deque<std::string>::const_iterator it = location.indexes.begin(); it != location.indexes.end(); ++it) {
-
-					if (isFile(filePath + *it)) {
-
-						filePath += *it;
-						break;
-
-					}
-
-				}
-
-			}
-
-			std::cout << "\r\e[K\e[1;35mFile found: " << filePath << "\e[0m" << std::endl;
-
-			Response	resp( req, filePath );
-
-			std::cout << "\r\e[K\e[1;36mSending response...\e[0m" << std::flush;
-			write(clientSocket, resp.getResponse().c_str(), resp.getResponse().length());
-			std::cout << "\r\e[KResponse sent" << std::endl;
-
-			close(clientSocket);
-
-		}
-
-	}
-
 }
 
-int main(int argc, char** argv) {
+int main(int argc, char **argv) {
 
+	// Check arguments
 	if (argc != 2) {
-		std::cerr << "Usage: " << argv[0] << " <config file>" << std::endl;
-		exit(EXIT_FAILURE);
+		std::cerr << "Usage: " << ((argc) ? argv[0] : "webserv") << " <config_file>" << std::endl;
+		return USAGE_FAILURE;
 	}
 
-	WebservConfig config(argv[1]);
+	// Getting config
+	WebservConfig config;
+	try {
+		config = WebservConfig(argv[1]);
+	} catch (std::exception &e) {
+		std::cerr << e.what() << std::endl;
+		try {
+			cleanup(config);
+		} catch (std::exception &e) {
+			std::cerr << e.what() << std::endl;
+			return CLEANUP_FAILURE;
+		}
+		return CONFIG_FAILURE;
+	}
 
-	launchServers(config);
+	// Listening
+	try {
+		for (std::deque<Server>::const_iterator it = config.servers().begin(); it != config.servers().end(); it++) {
+			listen(*it);
+		}
+	} catch (std::exception &e) {
+		std::cerr << e.what() << std::endl;
+		try {
+			cleanup(config);
+		} catch (std::exception &e) {
+			std::cerr << e.what() << std::endl;
+			return CLEANUP_FAILURE;
+		}
+		return LISTEN_FAILURE;
+	}
 
-	return (0);
+	// Launching
+	try {
+		launch(config);
+	} catch (std::exception &e) {
+		std::cerr << e.what() << std::endl;
+		try {
+			cleanup(config);
+		} catch (std::exception &e) {
+			std::cerr << e.what() << std::endl;
+			return CLEANUP_FAILURE;
+		}
+		return LAUNCH_FAILURE;
+	}
+
+	// Cleanup
+	try {
+		cleanup(config);
+	} catch (std::exception &e) {
+		std::cerr << e.what() << std::endl;
+		return CLEANUP_FAILURE;
+	}
+
+	return SUCCESS;
+
 }
-
-// Authors : Charly Tardy, Marwan Ayoub, Noah Alexandre
-// Version : 0.4.0

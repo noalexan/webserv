@@ -29,6 +29,7 @@ class WebservConfig {
 
 	public:
 
+		WebservConfig();
 		WebservConfig(char const * ConfigFileName);
 
 		std::deque<Server>			& servers() { return _servers; }

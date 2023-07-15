@@ -3,7 +3,7 @@
 #include <iostream>
 #include <fstream>
 
-bool pathExists(std::string const & path);
+#include <unistd.h>
 
 static std::string getWord(std::string &line) {
 	std::string word;
@@ -13,12 +13,13 @@ static std::string getWord(std::string &line) {
 	return word;
 }
 
+WebservConfig::WebservConfig() {}
+
 WebservConfig::WebservConfig(char const *ConfigFileName) {
 
 	std::ifstream ConfigFile(ConfigFileName);
 	if (!ConfigFile.is_open()) {
-		std::cerr << "Error: could not open config file " << ConfigFileName << std::endl;
-		return;
+		throw std::runtime_error("Error: cannot open config file");
 	}
 
 	std::string line;
@@ -35,9 +36,8 @@ WebservConfig::WebservConfig(char const *ConfigFileName) {
 		}
 
 		if (line[line.length() - 1] != ';' && line[line.length() - 1] != '{' && line[line.length() - 1] != '}') {
-			std::cerr << "Error: " << line_number << ": missing ';' at the end of line" << std::endl;
 			ConfigFile.close();
-			exit(1);
+			throw std::runtime_error("Error: " + std::to_string(line_number) + ": missing ';' at the end of line");
 		}
 
 		std::string word = getWord(line);
@@ -45,9 +45,8 @@ WebservConfig::WebservConfig(char const *ConfigFileName) {
 		if (word == "http") {
 
 			if (getWord(line) != "{" || getWord(line).length()) {
-				std::cerr << "Error: " << line_number << ": invalid line" << std::endl;
 				ConfigFile.close();
-				exit(1);
+				throw std::runtime_error("Error: " + std::to_string(line_number) + ": invalid line");
 			}
 
 			std::cout << "Entering http block" << std::endl;
@@ -68,9 +67,8 @@ WebservConfig::WebservConfig(char const *ConfigFileName) {
 				}
 
 				if (line[line.length() - 1] != ';' && line[line.length() - 1] != '{' && line[line.length() - 1] != '}') {
-					std::cerr << "Error: " << line_number << ": missing ';' at the end of line" << std::endl;
 					ConfigFile.close();
-					exit(1);
+					throw std::runtime_error("Error: " + std::to_string(line_number) + ": missing ';' at the end of line");
 				}
 
 				std::string word = getWord(line);
@@ -78,9 +76,8 @@ WebservConfig::WebservConfig(char const *ConfigFileName) {
 				if (word == "server") {
 
 					if (getWord(line) != "{" || getWord(line).length()) {
-						std::cerr << "Error: " << line_number << ": invalid line" << std::endl;
 						ConfigFile.close();
-						exit(1);
+						throw std::runtime_error("Error: " + std::to_string(line_number) + ": invalid line");
 					}
 
 					std::cout << "Entering server block" << std::endl;
@@ -103,20 +100,19 @@ WebservConfig::WebservConfig(char const *ConfigFileName) {
 						}
 
 						if (line[line.length() - 1] != ';' && line[line.length() - 1] != '{' && line[line.length() - 1] != '}') {
-							std::cerr << "Error: " << line_number << ": missing ';' at the end of line" << std::endl;
 							ConfigFile.close();
-							exit(1);
+							throw std::runtime_error("Error: " + std::to_string(line_number) + ": missing ';' at the end of line");
 						}
 
 						std::string word = getWord(line);
 
 						if (word == "listen") {
 							std::string listen = getWord(line);
-							try { server.port = std::stoi(listen); }
-							catch (std::exception &) {
-								std::cerr << "Error: " << line_number << ": invalid port" << std::endl;
+							try {
+								server.port = std::stoi(listen);
+							} catch (std::exception &) {
 								ConfigFile.close();
-								exit(1);
+								throw std::runtime_error("Error: " + std::to_string(line_number) + ": invalid port");
 							}
 							std::cout << "port: " << server.port << std::endl;
 						} else if (word == "server_name") {
@@ -128,9 +124,8 @@ WebservConfig::WebservConfig(char const *ConfigFileName) {
 							std::string location_path = getWord(line);
 
 							if (getWord(line) != "{" || getWord(line).length()) {
-								std::cerr << "Error: " << line_number << ": invalid line" << std::endl;
 								ConfigFile.close();
-								exit(1);
+								throw std::runtime_error("Error: " + std::to_string(line_number) + ": invalid line");
 							}
 
 							std::cout << "Entering location block" << std::endl;
@@ -154,9 +149,8 @@ WebservConfig::WebservConfig(char const *ConfigFileName) {
 								}
 
 								if (line[line.length() - 1] != ';') {
-									std::cerr << "Error: " << line_number << ": missing ';' at the end of line" << std::endl;
 									ConfigFile.close();
-									exit(1);
+									throw std::runtime_error("Error: " + std::to_string(line_number) + ": missing ';' at the end of line");
 								}
 
 								std::string word = getWord(line);
@@ -166,9 +160,9 @@ WebservConfig::WebservConfig(char const *ConfigFileName) {
 									std::string root = line.substr(0, line.find_last_of(';'));
 									std::cout << "root: '" << root << "'" << std::endl;
 
-									if (!pathExists(root)) {
-										std::cerr << "Error: " << line_number << ": root doesn't exists" << std::endl;
-										exit(1);
+									if (access(root.c_str(), F_OK) == -1) {
+										ConfigFile.close();
+										throw std::runtime_error("Error: " + std::to_string(line_number) + ": root directory does not exist");
 									}
 
 									location.root = root;
@@ -177,10 +171,8 @@ WebservConfig::WebservConfig(char const *ConfigFileName) {
 									std::cout << "index: " << line << std::endl;
 									while ((index = getWord(line)).length()) location.indexes.push_back(index);
 								} else {
-									std::cerr << "Error: " << line_number << ": unrecognized location rule" << std::endl;
 									ConfigFile.close();
-									exit(1);
-									continue;
+									throw std::runtime_error("Error: " + std::to_string(line_number) + ": unrecognized location rule");
 								}
 
 							}
@@ -190,10 +182,8 @@ WebservConfig::WebservConfig(char const *ConfigFileName) {
 							std::cout << "Exiting location block" << std::endl;
 
 						} else {
-							std::cerr << "Error: " << line_number << ": unrecognized server rule" << std::endl;
 							ConfigFile.close();
-							exit(1);
-							continue;
+							throw std::runtime_error("Error: " + std::to_string(line_number) + ": unrecognized server rule");
 						}
 
 					}
@@ -205,8 +195,8 @@ WebservConfig::WebservConfig(char const *ConfigFileName) {
 					server.fd = socket(AF_INET, SOCK_STREAM, 0);
 
 					if (server.fd == -1) {
-						std::cerr << "Failed to create socket." << std::endl;
-						exit(EXIT_FAILURE);
+						ConfigFile.close();
+						throw std::runtime_error("Error: " + std::to_string(line_number) + ": socket() failed");
 					}
 
 					_servers.push_back(server);
@@ -214,10 +204,8 @@ WebservConfig::WebservConfig(char const *ConfigFileName) {
 					std::cout << "Exiting server block" << std::endl;
 
 				} else {
-					std::cerr << "Error: " << line_number << ": unrecognized http rule" << std::endl;
 					ConfigFile.close();
-					exit(1);
-					continue;
+					throw std::runtime_error("Error: " + std::to_string(line_number) + ": unrecognized rule");
 				}
 
 			}
@@ -225,10 +213,8 @@ WebservConfig::WebservConfig(char const *ConfigFileName) {
 			std::cout << "Exiting http block" << std::endl;
 
 		} else {
-			std::cerr << "Error: " << line_number << ": unrecognized rule" << std::endl;
 			ConfigFile.close();
-			exit(1);
-			continue;
+			throw std::runtime_error("Error: " + std::to_string(line_number) + ": unrecognized rule");
 		}
 
 	}
