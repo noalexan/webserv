@@ -1,4 +1,4 @@
-#include "WebservConfig.hpp"
+#include <Config/Config.hpp>
 
 #include <iostream>
 #include <fstream>
@@ -13,9 +13,9 @@ static std::string getWord(std::string &line) {
 	return word;
 }
 
-WebservConfig::WebservConfig() {}
+Config::Config() {}
 
-WebservConfig::WebservConfig(char const *ConfigFileName) {
+Config::Config(char const *ConfigFileName) {
 
 	std::ifstream ConfigFile(ConfigFileName);
 	if (!ConfigFile.is_open()) {
@@ -83,6 +83,7 @@ WebservConfig::WebservConfig(char const *ConfigFileName) {
 					std::cout << "Entering server block" << std::endl;
 
 					struct Server server;
+					struct Location mainLocation;
 
 					while (std::getline(ConfigFile, line)) {
 
@@ -119,6 +120,25 @@ WebservConfig::WebservConfig(char const *ConfigFileName) {
 							std::string host;
 							std::cout << "hosts: " << line << std::endl;
 							while ((host = getWord(line)).length()) server.hosts.push_back(host);
+						} else if (word == "root") {
+
+							line.erase(0, line.find_first_not_of(" \t"));
+							std::string root = line.substr(0, line.find_last_of(';'));
+
+							if (root[root.length() - 1] == '/') root.pop_back();
+
+							std::cout << "root: '" << root << "'" << std::endl;
+
+							if (access(root.c_str(), F_OK) == -1) {
+								ConfigFile.close();
+								throw std::runtime_error("Error: " + std::to_string(line_number) + ": root directory does not exist");
+							}
+
+							mainLocation.root = root;
+						} else if (word == "index") {
+							std::string index;
+							std::cout << "index: " << line << std::endl;
+							while ((index = getWord(line)).length()) mainLocation.indexes.push_back(index);
 						} else if (word == "location") {
 
 							std::string location_path = getWord(line);
@@ -126,6 +146,16 @@ WebservConfig::WebservConfig(char const *ConfigFileName) {
 							if (getWord(line) != "{" || getWord(line).length()) {
 								ConfigFile.close();
 								throw std::runtime_error("Error: " + std::to_string(line_number) + ": invalid line");
+							}
+
+							if (location_path == "/") {
+								ConfigFile.close();
+								throw std::runtime_error("Error: " + std::to_string(line_number) + ": for location /, please specify root and index in server block");
+							}
+
+							if (server.locations.find(location_path) != server.locations.end()) {
+								ConfigFile.close();
+								throw std::runtime_error("Error: " + std::to_string(line_number) + ": duplicate location");
 							}
 
 							std::cout << "Entering location block" << std::endl;
@@ -158,6 +188,7 @@ WebservConfig::WebservConfig(char const *ConfigFileName) {
 								if (word == "root") {
 									line.erase(0, line.find_first_not_of(" \t"));
 									std::string root = line.substr(0, line.find_last_of(';'));
+									if (root[root.length() - 1] == '/') root.pop_back();
 									std::cout << "root: '" << root << "'" << std::endl;
 
 									if (access(root.c_str(), F_OK) == -1) {
@@ -187,6 +218,18 @@ WebservConfig::WebservConfig(char const *ConfigFileName) {
 						}
 
 					}
+
+					if (mainLocation.root.empty()) {
+						ConfigFile.close();
+						throw std::runtime_error("Error: " + std::to_string(line_number) + ": no root specified in server block");
+					}
+
+					if (mainLocation.indexes.empty()) {
+						ConfigFile.close();
+						throw std::runtime_error("Error: " + std::to_string(line_number) + ": no index specified in server block");
+					}
+
+					server.locations["/"] = mainLocation;
 
 					server.address.sin_family = AF_INET;
 					server.address.sin_port = htons(server.port);

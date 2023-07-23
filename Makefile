@@ -3,7 +3,7 @@ CXXFLAGS=-Werror -Wextra -Wall -std=c++98 -Isrc
 
 NAME=webserv
 
-SRC=$(addprefix src/, main.cpp WebservConfig/WebservConfig.cpp Request/Request.cpp Response/Response.cpp)
+SRC=$(addprefix src/, main.cpp Config/Config.cpp Request/Request.cpp Response/Response.cpp)
 OBJ=$(SRC:.cpp=.o)
 
 all: $(NAME)

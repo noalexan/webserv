@@ -1,13 +1,27 @@
 #include <iostream>
 #include <unistd.h>
 #include <sys/event.h>
+#include <sys/stat.h>
 #include <ExitCode.hpp>
-#include <WebservConfig/WebservConfig.hpp>
+#include <Config/Config.hpp>
+#include <Request/Request.hpp>
 
 #define MAX_EVENTS 10
 #define BUFFER_SIZE 1024
 
-void launch(WebservConfig const &config) {
+bool isDirectory(std::string const &path) {
+	struct stat path_stat;
+	stat(path.c_str(), &path_stat);
+	return S_ISDIR(path_stat.st_mode);
+}
+
+bool isFile(std::string const &path) {
+	struct stat path_stat;
+	stat(path.c_str(), &path_stat);
+	return S_ISREG(path_stat.st_mode);
+}
+
+void launch(Config const &config) {
 
 	int kq = kqueue();
 	if (kq == -1) {
@@ -37,6 +51,8 @@ void launch(WebservConfig const &config) {
 		}
 
 		for (int i = 0; i < nevents; i++) {
+
+			std::cout << "new connection" << std::endl;
 
 			int fd = events[i].ident;
 
@@ -69,8 +85,12 @@ void launch(WebservConfig const &config) {
 				continue;
 			}
 
+			std::cout << "Accepted connection" << std::endl;
+			std::cout << "reading request..." << std::endl;
+
 			char buffer[BUFFER_SIZE];
 			ssize_t bytes_read = read(client_fd, buffer, BUFFER_SIZE);
+
 			if (bytes_read == -1) {
 				std::cerr << "Error: read() failed" << std::endl;
 				if (close(client_fd) == -1) {
@@ -79,25 +99,89 @@ void launch(WebservConfig const &config) {
 				continue;
 			}
 
-			std::cout << "Received " << bytes_read << " bytes" << std::endl;
-			std::cout << buffer << std::endl;
-
-			std::string response =	"HTTP/1.1 200 OK\r\n"
-									"Content-Type: text/plain\r\n"
-									"Content-Length: 12\r\n"
-									"\r\n"
-									"Hello world!";
-
-			ssize_t bytes_written = write(client_fd, response.c_str(), response.length());
-			if (bytes_written == -1) {
-				std::cerr << "Error: write() failed" << std::endl;
+			if (bytes_read == 0) {
+				std::cout << "Client disconnected" << std::endl;
 				if (close(client_fd) == -1) {
 					std::cerr << "Error: close() failed" << std::endl;
 				}
 				continue;
 			}
 
-			std::cout << "Sent " << bytes_written << " bytes" << std::endl;
+			if (bytes_read == BUFFER_SIZE) {
+				std::cerr << "Error: buffer full" << std::endl;
+				if (close(client_fd) == -1) {
+					std::cerr << "Error: close() failed" << std::endl;
+				}
+				continue;
+			}
+
+			std::cout << "Received " << bytes_read << " bytes" << std::endl;
+
+			buffer[bytes_read] = '\0';
+
+			for (int i = 0; i < bytes_read; i++) {
+				if (buffer[i] == '\r') {
+					std::cout << "\e[31m\\r\e[0m";
+				} else if (buffer[i] == '\n') {
+					std::cout << "\e[31m\\n\e[0m" << std::endl;
+				} else {
+					std::cout << buffer[i];
+				}
+			}
+
+			std::string _(buffer, bytes_read);
+			Request request(_);
+
+			std::cout << "uri: " << request.uri() << std::endl;
+
+			if (request.method() == "GET")
+			{
+
+				// ***
+
+				std::string locationPath = request.uri();
+
+				std::cout << "looking for location: " << locationPath << std::endl;
+				while (server->locations.find(locationPath) == server->locations.end()) {
+					locationPath = locationPath.substr(0, locationPath.find_last_of('/'));
+					if (locationPath.empty()) locationPath = "/";
+					std::cout << "looking for location: " << locationPath << std::endl;
+				}
+
+				Location const * location = &server->locations.at(locationPath);
+
+				std::cout << "location: " << locationPath << std::endl;
+				std::cout << "\troot: " << location->root << std::endl;
+				std::cout << "\tindexes: ";
+				for (std::deque<std::string>::const_iterator it = location->indexes.begin(); it != location->indexes.end(); it++) std::cout << *it << " ";
+				std::cout << std::endl;
+
+				// ***
+
+				std::string response =	"HTTP/1.1 200 OK\r\n"
+										"Content-Type: application/json\r\n"
+										"\r\n"
+										"{\r\n"
+										"\"root\": \"" + location->root + "\",\r\n"
+										"\"target file\": \"" + location->root + request.uri() + "\"\r\n"
+										"}\r\n";
+
+				ssize_t bytes_written = write(client_fd, response.c_str(), response.length());
+				if (bytes_written == -1) {
+					std::cerr << "Error: write() failed" << std::endl;
+					if (close(client_fd) == -1) {
+						std::cerr << "Error: close() failed" << std::endl;
+					}
+					continue;
+				}
+
+				std::cout << "Sent " << bytes_written << " bytes" << std::endl;
+			}
+			else if (request.method() == "POST") {
+				std::cout << "POST" << std::endl;
+			} else if (request.method() == "DELETE") {
+				std::cout << "DELETE" << std::endl;
+			}
 
 			if (close(client_fd) == -1) {
 				std::cerr << "Error: close() failed" << std::endl;
@@ -110,7 +194,7 @@ void launch(WebservConfig const &config) {
 }
 
 void listen(Server const &server) {
-	
+
 	int opt = 1;
 	if (setsockopt(server.fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1) {
 		throw std::runtime_error("Error: setsockopt() failed");
@@ -128,7 +212,7 @@ void listen(Server const &server) {
 
 }
 
-void cleanup(WebservConfig const &config) {
+void cleanup(Config const &config) {
 	std::cout << "Cleaning up..." << std::endl;
 	for (std::deque<Server>::const_iterator it = config.servers().begin(); it != config.servers().end(); it++) {
 		std::cout << "Closing port " << it->port << "..." << std::endl;
@@ -142,14 +226,14 @@ int main(int argc, char **argv) {
 
 	// Check arguments
 	if (argc != 2) {
-		std::cerr << "Usage: " << ((argc) ? argv[0] : "webserv") << " <config_file>" << std::endl;
+		std::cerr << "Usage: " << ((argc) ? argv[0] : "") << " <config_file>" << std::endl;
 		return USAGE_FAILURE;
 	}
 
 	// Getting config
-	WebservConfig config;
+	Config config;
 	try {
-		config = WebservConfig(argv[1]);
+		config = Config(argv[1]);
 	} catch (std::exception &e) {
 		std::cerr << e.what() << std::endl;
 		try {
@@ -202,3 +286,6 @@ int main(int argc, char **argv) {
 	return SUCCESS;
 
 }
+
+// Authors : Charly Tardy, Marwan Ayoub, Noah Alexandre
+// Version : 0.5.0

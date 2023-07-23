@@ -1,5 +1,5 @@
-#ifndef WEBSERVCONFIG_HPP
-# define WEBSERVCONFIG_HPP
+#ifndef CONFIG_HPP
+# define CONFIG_HPP
 
 # include <string>
 # include <deque>
@@ -21,7 +21,7 @@ struct Server {
 	struct sockaddr_in				address;
 };
 
-class WebservConfig {
+class Config {
 
 	private:
 
@@ -29,8 +29,8 @@ class WebservConfig {
 
 	public:
 
-		WebservConfig();
-		WebservConfig(char const * ConfigFileName);
+		Config();
+		Config(char const * ConfigFileName);
 
 		std::deque<Server>			& servers() { return _servers; }
 		std::deque<Server> const	& servers() const { return _servers; }
