@@ -18,9 +18,9 @@ class Request {
 
 		Request(std::string & request);
 
-		std::string const & method() const { return _method; }
-		std::string const & uri() const { return _uri; }
-		std::string const & version() const { return _version; }
+		std::string const & getMethod() const { return _method; }
+		std::string const & getUri() const { return _uri; }
+		std::string const & getVersion() const { return _version; }
 
 		std::map<std::string, std::string> const & headers() const { return _headers; }
 

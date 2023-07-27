@@ -1,17 +1,17 @@
 #include <Response/Response.hpp>
 
-Response::Response( Request const & request, std::string const & filePath ) : _version( request.version() + ' ' ), _filePath( filePath ) {
+Response::Response( Request const & request, std::string const & filePath ) : _version( request.getVersion() + ' ' ), _filePath( filePath ) {
 
 	// for ( std::map<std::string, std::string>::const_iterator it = request.headers().begin(); it != request.headers().end(); it++ )
 	// 	std::cout << "{" << it->first << ", " << it->second << "}" << std::endl;
 	
-	std::cout << "method: " << request.method() << std::endl;
-	std::cout << "uri: " << request.uri() << std::endl;
-	std::cout << "version: " << request.version() << std::endl;
+	std::cout << "method: " << request.getMethod() << std::endl;
+	std::cout << "uri: " << request.getUri() << std::endl;
+	std::cout << "version: " << request.getVersion() << std::endl;
 
 	std::cout << "\r\e[K\e[1;36mSending response...\e[0m" << std::flush;
 
-	if ( request.method() != "GET" ) {
+	if ( request.getMethod() != "GET" ) {
 		_finalResponse = _version + METHOD_NOT_ALLOWED + "\r\n\r\n405 Method Not Allowed\r\n";
 	}
 
