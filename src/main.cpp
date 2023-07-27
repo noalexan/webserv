@@ -132,14 +132,14 @@ void launch(Config const &config) {
 			std::string _(buffer, bytes_read);
 			Request request(_);
 
-			std::cout << "uri: " << request.uri() << std::endl;
+			std::cout << "uri: " << request.getUri() << std::endl;
 
-			if (request.method() == "GET")
+			if (request.getMethod() == "GET")
 			{
 
 				// ***
 
-				std::string locationPath = request.uri();
+				std::string locationPath = request.getUri();
 
 				std::cout << "looking for location: " << locationPath << std::endl;
 				while (server->locations.find(locationPath) == server->locations.end()) {
@@ -163,7 +163,7 @@ void launch(Config const &config) {
 										"\r\n"
 										"{\r\n"
 										"\"root\": \"" + location->root + "\",\r\n"
-										"\"target file\": \"" + location->root + request.uri() + "\"\r\n"
+										"\"target file\": \"" + location->root + request.getUri() + "\"\r\n"
 										"}\r\n";
 
 				ssize_t bytes_written = write(client_fd, response.c_str(), response.length());
@@ -177,9 +177,9 @@ void launch(Config const &config) {
 
 				std::cout << "Sent " << bytes_written << " bytes" << std::endl;
 			}
-			else if (request.method() == "POST") {
+			else if (request.getMethod() == "POST") {
 				std::cout << "POST" << std::endl;
-			} else if (request.method() == "DELETE") {
+			} else if (request.getMethod() == "DELETE") {
 				std::cout << "DELETE" << std::endl;
 			}
 
