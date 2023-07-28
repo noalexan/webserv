@@ -2,6 +2,7 @@
 # define RESPONSE_HPP
 
 # include <iostream>
+# include <fstream>
 # include <unistd.h>
 # include <sys/stat.h>
 # include <sys/event.h>
@@ -54,6 +55,7 @@ class Response {
 
 		bool pathExists( std::string const & path ) const;
 		bool isDirectory( std::string const & path ) const;
+		std::string readIndexFile( std::string path );
 
 		std::string const & getResponse( void ) const { return ( _finalResponse ); }
 

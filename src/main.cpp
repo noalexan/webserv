@@ -5,6 +5,7 @@
 #include <ExitCode.hpp>
 #include <Config/Config.hpp>
 #include <Request/Request.hpp>
+#include <Response/Response.hpp>
 
 #define MAX_EVENTS 10
 #define BUFFER_SIZE 1024
@@ -125,7 +126,7 @@ void launch(Config const &config) {
 				} else if (buffer[i] == '\n') {
 					std::cout << "\e[31m\\n\e[0m" << std::endl;
 				} else {
-					std::cout << buffer[i];
+					std::cout << "\x1b[32m" << buffer[i] << "\x1b[0m";
 				}
 			}
 
@@ -153,35 +154,38 @@ void launch(Config const &config) {
 				std::cout << "location: " << locationPath << std::endl;
 				std::cout << "\troot: " << location->root << std::endl;
 				std::cout << "\tindexes: ";
-				for (std::deque<std::string>::const_iterator it = location->indexes.begin(); it != location->indexes.end(); it++) std::cout << *it << " ";
+				for (std::deque<std::string>::const_iterator it = location->indexes.begin(); it != location->indexes.end(); it++) std::cout << "\x1b[33m" << *it << " " << "\x1b[0m";
 				std::cout << std::endl;
 
-				// ***
+				Response	response(request, locationPath);
 
-				std::string response =	"HTTP/1.1 200 OK\r\n"
-										"Content-Type: application/json\r\n"
-										"\r\n"
-										"{\r\n"
-										"\"root\": \"" + location->root + "\",\r\n"
-										"\"target file\": \"" + location->root + request.getUri() + "\"\r\n"
-										"}\r\n";
+			// 	// ***
 
-				ssize_t bytes_written = write(client_fd, response.c_str(), response.length());
-				if (bytes_written == -1) {
-					std::cerr << "Error: write() failed" << std::endl;
-					if (close(client_fd) == -1) {
-						std::cerr << "Error: close() failed" << std::endl;
-					}
-					continue;
-				}
+			// 	std::string response =	"HTTP/1.1 200 OK\r\n"
+			// 							"Content-Type: application/json\r\n"
+			// 							"\r\n"
+			// 							"{\r\n"
+			// 							"\"root\": \"" + location->root + "\",\r\n"
+			// 							"\"target file\": \"" + location->root + request.getUri() + "\"\r\n"
+			// 							"}\r\n";
 
+				ssize_t bytes_written = write(client_fd, response.getResponse().c_str(), response.getResponse().length());
+			// 	if (bytes_written == -1) {
+			// 		std::cerr << "Error: write() failed" << std::endl;
+			// 		if (close(client_fd) == -1) {
+			// 			std::cerr << "Error: close() failed" << std::endl;
+			// 		}
+			// 		continue;
+			// 	}
+
+				std::cout << "\x1b[31m" << response.getResponse() << "\x1b[0m" << std::endl;
 				std::cout << "Sent " << bytes_written << " bytes" << std::endl;
 			}
-			else if (request.getMethod() == "POST") {
-				std::cout << "POST" << std::endl;
-			} else if (request.getMethod() == "DELETE") {
-				std::cout << "DELETE" << std::endl;
-			}
+			// else if (request.getMethod() == "POST") {
+			// 	std::cout << "POST" << std::endl;
+			// } else if (request.getMethod() == "DELETE") {
+			// 	std::cout << "DELETE" << std::endl;
+			// }
 
 			if (close(client_fd) == -1) {
 				std::cerr << "Error: close() failed" << std::endl;
