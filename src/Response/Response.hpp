@@ -4,12 +4,15 @@
 # include <iostream>
 # include <fstream>
 # include <unistd.h>
+
+# include <map>
+
 # include <sys/stat.h>
 # include <sys/event.h>
 
 # include <Request/Request.hpp>
 
-/* SECCESS */
+/* SUCCESS */
 # define OK						"200 OK"
 # define CREATED				"201 CREATED"
 # define ACCEPTED				"202 ACCEPTED"
@@ -43,21 +46,17 @@ class Response {
 
 	private:
 
-		std::string const	_version;
-		std::string	const	_method;
-		std::string	const	_filePath;
-
-		std::string			_finalResponse;
+		int const	_clientfd;
+		std::map<std::string, std::string>	_headers;
+		std::string	_target;
 
 	public:
 
-		Response( Request const & request, std::string const & filePath );
+		Response( Request const & request, int const & clientfd );
 
-		bool pathExists( std::string const & path ) const;
-		bool isDirectory( std::string const & path ) const;
-		std::string readIndexFile( std::string path );
+		void		operator<<( std::string const & );
 
-		std::string const & getResponse( void ) const { return ( _finalResponse ); }
+		std::string	readIndexFile( std::string path ) const;
 
 };
 

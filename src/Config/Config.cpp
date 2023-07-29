@@ -85,6 +85,8 @@ Config::Config(char const *ConfigFileName) {
 					struct Server server;
 					struct Location mainLocation;
 
+					mainLocation.directoryListing = true;
+
 					while (std::getline(ConfigFile, line)) {
 
 						line_number++;
@@ -125,7 +127,7 @@ Config::Config(char const *ConfigFileName) {
 							line.erase(0, line.find_first_not_of(" \t"));
 							std::string root = line.substr(0, line.find_last_of(';'));
 
-							if (root[root.length() - 1] == '/') root.pop_back();
+							if (root[root.length() - 1] != '/') root += '/';
 
 							std::cout << "root: '" << root << "'" << std::endl;
 
@@ -135,6 +137,8 @@ Config::Config(char const *ConfigFileName) {
 							}
 
 							mainLocation.root = root;
+						} else if (word == "directory_listing") {
+							mainLocation.directoryListing = ((getWord(line) == "on") ? true : false);
 						} else if (word == "index") {
 							std::string index;
 							std::cout << "index: " << line << std::endl;
@@ -188,7 +192,7 @@ Config::Config(char const *ConfigFileName) {
 								if (word == "root") {
 									line.erase(0, line.find_first_not_of(" \t"));
 									std::string root = line.substr(0, line.find_last_of(';'));
-									if (root[root.length() - 1] == '/') root.pop_back();
+									if (root[root.length() - 1] != '/') root += '/';
 									std::cout << "root: '" << root << "'" << std::endl;
 
 									if (access(root.c_str(), F_OK) == -1) {

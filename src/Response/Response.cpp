@@ -1,52 +1,63 @@
 #include <Response/Response.hpp>
+#include <deque>
+#include <sys/stat.h>
 
-Response::Response( Request const & request, std::string const & filePath ) : _version( request.getVersion() + ' ' ), _filePath( "index.html" ) {
+bool	isDirectory( std::string const & path ) {
+	struct stat path_stat;
+	stat(path.c_str(), &path_stat);
+	return ( S_ISDIR(path_stat.st_mode) );
+}
 
-	// for ( std::map<std::string, std::string>::const_iterator it = request.headers().begin(); it != request.headers().end(); it++ )
-	// 	std::cout << "{" << it->first << ", " << it->second << "}" << std::endl;
-	
-	std::cout << "method: " << request.getMethod() << std::endl;
-	std::cout << "uri: " << request.getUri() << std::endl;
-	std::cout << "version: " << request.getVersion() << std::endl;
+bool	isFile( std::string const & path ) {
+	struct stat path_stat;
+	stat(path.c_str(), &path_stat);
+	return ( S_ISREG(path_stat.st_mode) );
+}
 
-	std::cout << "\r\e[K\e[1;36mSending response...\e[0m" << std::endl;
+Response::Response( Request const & request, int const & clientfd ) : _clientfd( clientfd ) {
 
-	if ( request.getMethod() != "GET" ) {
-		_finalResponse = _version + METHOD_NOT_ALLOWED + "\r\n\r\n405 Method Not Allowed\r\n";
+	_target = request.getTarget();
+	if (isDirectory(_target) || _target[_target.length() - 1] == '/') {
+		if (_target[_target.length() - 1] != '/') _target += '/';
+		
+		for (std::deque<std::string>::const_iterator it = request.getLocation()->indexes.begin(); it != request.getLocation()->indexes.end(); it++) {
+			if (isFile(_target + *it)) {
+				_target += *it;
+				break;
+			}
+		}
+
 	}
 
-	if (!pathExists(filePath)) {
-		std::cout << "\r\e[K\e[1;35m" << _filePath << " doesn't exists\e[0m" << std::endl;
-		_finalResponse = _version + NOT_FOUND + "\r\n\r\n404 Not Found\r\n";
-		return ;
+	if (isDirectory(_target)) {
+		if (request.getLocation()->directoryListing) {
+			*this << request.getVersion() + ' ' + OK + "\r\n";
+		} else {
+			*this << request.getVersion() + ' ' + FORBIDDEN + "\r\n";
+		}
+	} else if (isFile(_target)) {
+		*this << request.getVersion() + ' ' + OK + "\r\n";
+	} else {
+		*this << request.getVersion() + ' ' + NOT_FOUND + "\r\n";
 	}
 
-	// if (isDirectory(filePath)) {
-	// 	std::cout << "\r\e[K\e[1;35m" << filePath << " is a Directory\e[0m" << std::endl;
-	// 	_finalResponse = _version + FORBIDDEN + "\r\n\r\n403 Forbidden\r\n";
-	// }
+	_headers["Server"] = "webserv";
 
-	_finalResponse = _version + OK + "\r\n\r\n" + readIndexFile( filePath ) + "\r\n\r\n";
+	*this << request.getVersion() + ' ' + OK + "\r\n";
+	for (std::map<std::string, std::string>::iterator it = _headers.begin(); it != _headers.end(); it++)
+		*this << it->first + ": " + it->second + "\r\n";
+	*this << "\r\n";
+
+	*this << readIndexFile(_target);
+	*this << "\r\n";
 
 }
 
-bool Response::pathExists( std::string const & path ) const {
-	return ( access(path.c_str(), R_OK) != -1 );
-}
+void	Response::operator<<( std::string const & o ) { write(_clientfd, o.c_str(), o.length()); }
 
-bool	Response::isDirectory( std::string const & path ) const {
-	struct stat st;
-	if (stat(path.c_str(), &st) == 0) {
-		return ( S_ISDIR(st.st_mode) );
-	}
-	return ( false );
-}
-
-std::string	Response::readIndexFile( std::string path )
-{
+std::string	Response::readIndexFile( std::string path ) const {
 	std::ifstream file(path);
 	std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
 	file.close();
-	std::cout << "content : " << content << std::endl;
-	return content;
+	return ( content );
 }

@@ -1,7 +1,6 @@
 #include <iostream>
 #include <unistd.h>
 #include <sys/event.h>
-#include <sys/stat.h>
 #include <ExitCode.hpp>
 #include <Config/Config.hpp>
 #include <Request/Request.hpp>
@@ -9,18 +8,6 @@
 
 #define MAX_EVENTS 10
 #define BUFFER_SIZE 1024
-
-bool isDirectory(std::string const &path) {
-	struct stat path_stat;
-	stat(path.c_str(), &path_stat);
-	return S_ISDIR(path_stat.st_mode);
-}
-
-bool isFile(std::string const &path) {
-	struct stat path_stat;
-	stat(path.c_str(), &path_stat);
-	return S_ISREG(path_stat.st_mode);
-}
 
 void launch(Config const &config) {
 
@@ -131,61 +118,25 @@ void launch(Config const &config) {
 			}
 
 			std::string _(buffer, bytes_read);
-			Request request(_);
+			Request request(_, server);
 
-			std::cout << "uri: " << request.getUri() << std::endl;
-
-			if (request.getMethod() == "GET")
-			{
-
-				// ***
-
-				std::string locationPath = request.getUri();
-
-				std::cout << "looking for location: " << locationPath << std::endl;
-				while (server->locations.find(locationPath) == server->locations.end()) {
-					locationPath = locationPath.substr(0, locationPath.find_last_of('/'));
-					if (locationPath.empty()) locationPath = "/";
-					std::cout << "looking for location: " << locationPath << std::endl;
-				}
-
-				Location const * location = &server->locations.at(locationPath);
-
-				std::cout << "location: " << locationPath << std::endl;
-				std::cout << "\troot: " << location->root << std::endl;
-				std::cout << "\tindexes: ";
-				for (std::deque<std::string>::const_iterator it = location->indexes.begin(); it != location->indexes.end(); it++) std::cout << "\x1b[33m" << *it << " " << "\x1b[0m";
-				std::cout << std::endl;
-
-				Response	response(request, locationPath);
-
-			// 	// ***
-
-			// 	std::string response =	"HTTP/1.1 200 OK\r\n"
-			// 							"Content-Type: application/json\r\n"
-			// 							"\r\n"
-			// 							"{\r\n"
-			// 							"\"root\": \"" + location->root + "\",\r\n"
-			// 							"\"target file\": \"" + location->root + request.getUri() + "\"\r\n"
-			// 							"}\r\n";
-
-				ssize_t bytes_written = write(client_fd, response.getResponse().c_str(), response.getResponse().length());
-			// 	if (bytes_written == -1) {
-			// 		std::cerr << "Error: write() failed" << std::endl;
-			// 		if (close(client_fd) == -1) {
-			// 			std::cerr << "Error: close() failed" << std::endl;
-			// 		}
-			// 		continue;
-			// 	}
-
-				std::cout << "\x1b[31m" << response.getResponse() << "\x1b[0m" << std::endl;
-				std::cout << "Sent " << bytes_written << " bytes" << std::endl;
+			if (request.getMethod() == "GET") {
+			} else if (request.getMethod() == "POST") {
+			} else if (request.getMethod() == "DELETE") {
 			}
-			// else if (request.getMethod() == "POST") {
-			// 	std::cout << "POST" << std::endl;
-			// } else if (request.getMethod() == "DELETE") {
-			// 	std::cout << "DELETE" << std::endl;
-			// }
+
+			Response	response(request, client_fd);
+
+			// std::string response =	"HTTP/1.1 200 OK\r\n"
+			// 						"Content-Type: application/json\r\n"
+			// 						"\r\n"
+			// 						"{\r\n"
+			// 						"\t\"method\": \"" + request.getMethod() + "\",\r\n"
+			// 						"\t\"root\": \"" + request.getLocation()->root + "\",\r\n"
+			// 						"\t\"target\": \"" + request.getTarget() + "\",\r\n"
+			// 						"\t\"uri\": \"" + request.getUri() + "\",\r\n"
+			// 						"\t\"directory_listing\": \"" + ((request.getLocation()->directoryListing) ? "true" : "false") + "\"\r\n"
+			// 						"}\r\n";
 
 			if (close(client_fd) == -1) {
 				std::cerr << "Error: close() failed" << std::endl;
@@ -230,7 +181,7 @@ int main(int argc, char **argv) {
 
 	// Check arguments
 	if (argc != 2) {
-		std::cerr << "Usage: " << ((argc) ? argv[0] : "") << " <config_file>" << std::endl;
+		std::cerr << "Usage: " << ((argc) ? argv[0] : "webserv") << " <config_file>" << std::endl;
 		return USAGE_FAILURE;
 	}
 

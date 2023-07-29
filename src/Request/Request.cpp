@@ -1,7 +1,7 @@
 #include <Request/Request.hpp>
 #include <iostream>
 
-Request::Request(std::string & request) {
+Request::Request(std::string & request, Server const * server) {
 
 	if (request.find("\r\n\r\n") == std::string::npos) {
 		std::cerr << "Error: invalid request" << std::endl;
@@ -28,5 +28,18 @@ Request::Request(std::string & request) {
 		_headers[key] = line;
 
 	}
+
+	std::string locationPath(_uri);
+
+	std::cout << "looking for location: " << locationPath << std::endl;
+	while (server->locations.find(locationPath) == server->locations.end()) {
+		locationPath = locationPath.substr(0, locationPath.find_last_of('/'));
+		if (locationPath.empty()) locationPath = "/";
+		std::cout << "looking for location: " << locationPath << std::endl;
+	}
+
+	_location = &server->locations.at(locationPath);
+	_uri.erase(0, locationPath.length());
+	_target = _location->root + _uri;
 
 }

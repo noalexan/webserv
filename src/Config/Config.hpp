@@ -10,6 +10,7 @@
 struct Location {
 	std::string				root;
 	std::deque<std::string>	indexes;
+	bool					directoryListing;
 };
 
 struct Server {
