@@ -22,6 +22,18 @@ Config::Config(char const *ConfigFileName) {
 		throw std::runtime_error("Error: cannot open config file");
 	}
 
+	_contentTypes[".txt"] = "text/plain";
+	_contentTypes[".html"] = "text/html";
+	_contentTypes[".css"] = "text/css";
+	_contentTypes[".js"] = "text/javascript";
+	_contentTypes[".xml"] = "text/xml";
+	_contentTypes[".json"] = "application/json";
+	_contentTypes[".jpg"] = "image/jpeg";
+	_contentTypes[".png"] = "image/png";
+	_contentTypes[".gif"] = "image/gif";
+	_contentTypes[".ico"] = "image/x-icon";
+	_contentTypes[".mp4"] = "video/mp4";
+
 	std::string line;
 	int line_number = 0;
 	while (std::getline(ConfigFile, line)) {

@@ -26,15 +26,18 @@ class Config {
 
 	private:
 
-		std::deque<Server> _servers;
+		std::deque<Server>					_servers;
+		std::map<std::string, std::string>	_contentTypes;
 
 	public:
 
 		Config();
 		Config(char const * ConfigFileName);
 
-		std::deque<Server>			& servers() { return _servers; }
-		std::deque<Server> const	& servers() const { return _servers; }
+		std::deque<Server>			& getServers( void ) { return _servers; }
+		std::deque<Server> const	& getServers( void ) const { return _servers; }
+
+		std::map<std::string, std::string> const	& getContentTypes() const { return _contentTypes; }
 
 };
 
