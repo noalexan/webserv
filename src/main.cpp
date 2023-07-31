@@ -18,7 +18,7 @@ void launch(Config const &config) {
 
 	struct kevent events[MAX_EVENTS];
 
-	for (std::deque<Server>::const_iterator it = config.servers().begin(); it != config.servers().end(); it++) {
+	for (std::deque<Server>::const_iterator it = config.getServers().begin(); it != config.getServers().end(); it++) {
 		EV_SET(&events[it->fd], it->fd, EVFILT_READ, EV_ADD, 0, 0, NULL);
 		if (kevent(kq, &events[it->fd], 1, NULL, 0, NULL) == -1) {
 			if (close(kq) == -1) {
@@ -45,7 +45,7 @@ void launch(Config const &config) {
 			int fd = events[i].ident;
 
 			Server const *server = nullptr;
-			for (std::deque<Server>::const_iterator it = config.servers().begin(); it != config.servers().end(); it++) {
+			for (std::deque<Server>::const_iterator it = config.getServers().begin(); it != config.getServers().end(); it++) {
 				if (it->fd == fd) {
 					server = &(*it);
 					break;
@@ -125,7 +125,7 @@ void launch(Config const &config) {
 			} else if (request.getMethod() == "DELETE") {
 			}
 
-			Response	response(request, client_fd);
+			Response	response(request, client_fd, config.getContentTypes());
 
 			// std::string response =	"HTTP/1.1 200 OK\r\n"
 			// 						"Content-Type: application/json\r\n"
@@ -169,7 +169,7 @@ void listen(Server const &server) {
 
 void cleanup(Config const &config) {
 	std::cout << "Cleaning up..." << std::endl;
-	for (std::deque<Server>::const_iterator it = config.servers().begin(); it != config.servers().end(); it++) {
+	for (std::deque<Server>::const_iterator it = config.getServers().begin(); it != config.getServers().end(); it++) {
 		std::cout << "Closing port " << it->port << "..." << std::endl;
 		if (close(it->fd) == -1) {
 			throw std::runtime_error("Error: close() failed");
@@ -202,7 +202,7 @@ int main(int argc, char **argv) {
 
 	// Listening
 	try {
-		for (std::deque<Server>::const_iterator it = config.servers().begin(); it != config.servers().end(); it++) {
+		for (std::deque<Server>::const_iterator it = config.getServers().begin(); it != config.getServers().end(); it++) {
 			listen(*it);
 		}
 	} catch (std::exception &e) {
