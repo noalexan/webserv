@@ -14,7 +14,14 @@ bool	isFile( std::string const & path ) {
 	return ( S_ISREG(path_stat.st_mode) );
 }
 
-Response::Response( Request const & request, int const & clientfd ) : _clientfd( clientfd ) {
+Response::Response( Request const & request, int const & clientfd, std::map<std::string, std::string> const & contentTypes ) : _clientfd( clientfd ) {
+
+	time_t		tmm = time(0);
+	tm			*ltm = localtime(&tmm);
+	tm			*gmt = gmtime(&tmm);
+	std::string	date = ctime(&tmm);
+	std::ostringstream	oss;
+	oss << std::put_time(gmt, "%H:%M:%S");
 
 	_target = request.getTarget();
 	if (isDirectory(_target) || _target[_target.length() - 1] == '/') {
@@ -41,7 +48,29 @@ Response::Response( Request const & request, int const & clientfd ) : _clientfd(
 		*this << request.getVersion() + ' ' + NOT_FOUND + "\r\n";
 	}
 
+	std::string extention = _target.substr(_target.find_last_of('.'), _target.length());
+
+	// ? ** RESPONSE INFO **
+
 	_headers["Server"] = "webserv";
+
+	if (contentTypes.find(extention) != contentTypes.end()) 
+		_headers["Content-Type"] = contentTypes.at(extention);
+
+	_headers["Date"]	= date.substr(0, date.find_first_of(' ')) + ", " // * Day Week
+						+ std::to_string(ltm->tm_mday) + ' ' // * Day
+						+ date.substr(date.find_first_of(' ') + 1, date.find_first_of(' ')) + ' ' // * Month
+						+ std::to_string(1900 + ltm->tm_year) + ' ' // * Year
+						+ oss.str() // * GMT hour
+						+ "GMT";
+						
+	_headers["Conection"] = "close";
+	_headers["Content-Encoding"] = "identity";
+	_headers["Access-Control-Allow-Origin"] = '*';
+
+	// ? *******************
+
+	std::cout << "target: " << _target.substr( _target.find_last_of('/') + 1, _target.length() ) << std::endl;
 
 	*this << request.getVersion() + ' ' + OK + "\r\n";
 	for (std::map<std::string, std::string>::iterator it = _headers.begin(); it != _headers.end(); it++)

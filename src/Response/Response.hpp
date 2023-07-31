@@ -3,7 +3,10 @@
 
 # include <iostream>
 # include <fstream>
+# include <sstream>
 # include <unistd.h>
+
+# include <ctime>
 
 # include <map>
 
@@ -52,11 +55,11 @@ class Response {
 
 	public:
 
-		Response( Request const & request, int const & clientfd );
-
-		void		operator<<( std::string const & );
+		Response( Request const & request, int const & clientfd, std::map<std::string, std::string> const & contentTypes );
 
 		std::string	readIndexFile( std::string path ) const;
+
+		void		operator<<( std::string const & o );
 
 };
 
