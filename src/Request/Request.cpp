@@ -29,6 +29,37 @@ Request::Request(std::string & request, Server const * server) {
 
 	}
 
+	if (_uri.find('?') != std::string::npos) {
+
+		std::string parameters = _uri.substr(_uri.find('?') + 1, _uri.length());
+		_uri.erase(_uri.find('?'), _uri.length());
+
+		while (parameters.length()) {
+
+			std::string key = parameters.substr(0, parameters.find('='));
+
+			if (parameters.find('=') != std::string::npos) {
+				parameters.erase(0, parameters.find('=') + 1);
+			} else {
+				parameters.erase(0, parameters.length());
+			}
+
+			std::string value = parameters.substr(0, parameters.find('&'));
+
+			if (parameters.find('&') != std::string::npos) {
+				parameters.erase(0, parameters.find('&') + 1);
+			} else {
+				parameters.erase(0, parameters.length());
+			}
+
+			_params[key] = value;
+
+			std::cout << "param: " << key << "=" << value << std::endl;
+
+		}
+
+	}
+
 	std::string locationPath(_uri);
 
 	std::cout << "looking for location: " << locationPath << std::endl;

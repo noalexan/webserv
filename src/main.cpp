@@ -76,56 +76,47 @@ void launch(Config const &config) {
 			std::cout << "Accepted connection" << std::endl;
 			std::cout << "reading request..." << std::endl;
 
+			std::string _;
 			char buffer[BUFFER_SIZE];
-			ssize_t bytes_read = read(client_fd, buffer, BUFFER_SIZE);
+			ssize_t bytes_read;
 
-			if (bytes_read == -1) {
-				std::cerr << "Error: read() failed" << std::endl;
-				if (close(client_fd) == -1) {
-					std::cerr << "Error: close() failed" << std::endl;
+			while ((bytes_read = read(client_fd, buffer, BUFFER_SIZE))) {
+
+				if (bytes_read == -1) {
+					std::cerr << "Error: read() failed" << std::endl;
+					write(client_fd, "HTTP/1.1 500 Internal Server Error\r\n\r\n", 38);
+					if (close(client_fd) == -1) {
+						std::cerr << "Error: close() failed" << std::endl;
+					}
+					continue;
 				}
-				continue;
-			}
 
-			if (bytes_read == 0) {
-				std::cout << "Client disconnected" << std::endl;
-				if (close(client_fd) == -1) {
-					std::cerr << "Error: close() failed" << std::endl;
+				if (bytes_read == 0) {
+					std::cout << "Client disconnected" << std::endl;
+					write(client_fd, "HTTP/1.1 500 Internal Server Error\r\n\r\n", 38);
+					if (close(client_fd) == -1) {
+						std::cerr << "Error: close() failed" << std::endl;
+					}
+					continue;
 				}
-				continue;
-			}
 
-			if (bytes_read == BUFFER_SIZE) {
-				std::cerr << "Error: buffer full" << std::endl;
-				if (close(client_fd) == -1) {
-					std::cerr << "Error: close() failed" << std::endl;
+				buffer[bytes_read] = '\0';
+
+				_ += buffer;
+
+				if (bytes_read < BUFFER_SIZE) {
+					break;
 				}
-				continue;
+
 			}
 
-			std::cout << "Received " << bytes_read << " bytes" << std::endl;
-
-			buffer[bytes_read] = '\0';
-
-			for (int i = 0; i < bytes_read; i++) {
-				if (buffer[i] == '\r') {
-					std::cout << "\e[31m\\r\e[0m";
-				} else if (buffer[i] == '\n') {
-					std::cout << "\e[31m\\n\e[0m" << std::endl;
-				} else {
-					std::cout << "\x1b[32m" << buffer[i] << "\x1b[0m";
-				}
+			try {
+				Request		request(_, server);
+				Response	response(request, client_fd, config);
+			} catch (std::exception const &e) {
+				std::cerr << e.what() << std::endl;
+				write(client_fd, "HTTP/1.1 500 Internal Server Error\r\n\r\n", 38);
 			}
-
-			std::string _(buffer, bytes_read);
-			Request request(_, server);
-
-			if (request.getMethod() == "GET") {
-			} else if (request.getMethod() == "POST") {
-			} else if (request.getMethod() == "DELETE") {
-			}
-
-			Response	response(request, client_fd, config.getContentTypes());
 
 			if (close(client_fd) == -1) {
 				std::cerr << "Error: close() failed" << std::endl;
@@ -166,7 +157,7 @@ void cleanup(Config const &config) {
 	}
 }
 
-int main(int argc, char **argv) {
+int main(int argc, char ** argv, char ** env) {
 
 	// Check arguments
 	if (argc != 2) {
@@ -177,7 +168,7 @@ int main(int argc, char **argv) {
 	// Getting config
 	Config config;
 	try {
-		config = Config(argv[1]);
+		config = Config(argv[1], env);
 	} catch (std::exception &e) {
 		std::cerr << e.what() << std::endl;
 		try {
@@ -232,4 +223,4 @@ int main(int argc, char **argv) {
 }
 
 // Authors : Charly Tardy, Marwan Ayoub, Noah Alexandre
-// Version : 0.5.0
+// Version : 0.7.1

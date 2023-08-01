@@ -14,6 +14,7 @@
 # include <sys/event.h>
 
 # include <Request/Request.hpp>
+# include <Config/Config.hpp>
 
 /* SUCCESS */
 # define OK						"200 OK"
@@ -49,17 +50,17 @@ class Response {
 
 	private:
 
-		int const	_clientfd;
+		int const							_clientfd;
+		std::string							_target;
 		std::map<std::string, std::string>	_headers;
-		std::string	_target;
 
 	public:
 
-		Response( Request const & request, int const & clientfd, std::map<std::string, std::string> const & contentTypes );
+		Response(Request const & request, int const & clientfd, Config const & config);
 
-		std::string	readIndexFile( std::string path ) const;
+		void operator<<(std::string const &);
 
-		void		operator<<( std::string const & o );
+		std::string	readFile(std::string path) const;
 
 };
 

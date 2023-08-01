@@ -18,6 +18,7 @@ class Request {
 		std::string _target;
 
 		std::map<std::string, std::string> _headers;
+		std::map<std::string, std::string> _params;
 
 	public:
 
@@ -28,7 +29,8 @@ class Request {
 		std::string const & getVersion() const { return _version; }
 		Location const * getLocation() const { return _location; }
 		std::string const & getTarget() const { return _target; }
-		std::map<std::string, std::string> const & headers() const { return _headers; }
+		std::map<std::string, std::string> const & getHeaders() const { return _headers; }
+		std::map<std::string, std::string> const & getParams() const { return _params; }
 
 };
 

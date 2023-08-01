@@ -15,24 +15,30 @@ static std::string getWord(std::string &line) {
 
 Config::Config() {}
 
-Config::Config(char const *ConfigFileName) {
+Config::Config(char const *ConfigFileName, char const * const * env) {
 
 	std::ifstream ConfigFile(ConfigFileName);
 	if (!ConfigFile.is_open()) {
 		throw std::runtime_error("Error: cannot open config file");
 	}
 
-	_contentTypes[".txt"] = "text/plain";
-	_contentTypes[".html"] = "text/html";
-	_contentTypes[".css"] = "text/css";
-	_contentTypes[".js"] = "text/javascript";
-	_contentTypes[".xml"] = "text/xml";
-	_contentTypes[".json"] = "application/json";
-	_contentTypes[".jpg"] = "image/jpeg";
-	_contentTypes[".png"] = "image/png";
-	_contentTypes[".gif"] = "image/gif";
-	_contentTypes[".ico"] = "image/x-icon";
-	_contentTypes[".mp4"] = "video/mp4";
+	for (int i = 0; env[i]; i++) {
+		std::string s(env[i]);
+		if (std::string::size_type pos = s.find('=') != std::string::npos)
+			_environment[s.substr(0, pos)] = s.substr(pos + 1);
+	}
+
+	_contentTypes[".txt"]	= "text/plain";
+	_contentTypes[".html"]	= "text/html";
+	_contentTypes[".css"]	= "text/css";
+	_contentTypes[".js"]	= "text/javascript";
+	_contentTypes[".xml"]	= "text/xml";
+	_contentTypes[".json"]	= "application/json";
+	_contentTypes[".jpg"]	= "image/jpeg";
+	_contentTypes[".png"]	= "image/png";
+	_contentTypes[".gif"]	= "image/gif";
+	_contentTypes[".ico"]	= "image/x-icon";
+	_contentTypes[".mp4"]	= "video/mp4";
 
 	std::string line;
 	int line_number = 0;
@@ -279,5 +285,9 @@ Config::Config(char const *ConfigFileName) {
 	}
 
 	ConfigFile.close();
+
+	if (_servers.empty()) {
+		throw std::runtime_error("Error: no server specified");
+	}
 
 }
