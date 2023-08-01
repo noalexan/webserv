@@ -31,119 +31,120 @@ class Client {
 
 
 void launch(Config const &config) {
-    const int MAX_EVENTS = 100;
-    int kq = kqueue();
-    if (kq == -1) {
-        throw std::runtime_error("Error: kqueue() failed");
-    }
 
-    struct kevent events[MAX_EVENTS];
-    std::map<int, Client> clientsMap; // Le std::map pour stocker les clients
+	const int MAX_EVENTS = 100;
+	int kq = kqueue();
+	if (kq == -1) {
+		throw std::runtime_error("Error: kqueue() failed");
+	}
 
-    for (std::deque<Server>::const_iterator it = config.getServers().begin(); it != config.getServers().end(); it++) {
-        EV_SET(&events[it->fd], it->fd, EVFILT_READ, EV_ADD, 0, 0, NULL);
-        if (kevent(kq, &events[it->fd], 1, NULL, 0, NULL) == -1) {
-            if (close(kq) == -1) {
-                std::cerr << "Error: close() failed" << std::endl;
-            }
-            throw std::runtime_error("Error: kevent() failed");
-        }
-    }
+	struct kevent events[MAX_EVENTS];
+	std::map<int, Client> clientsMap; // Le std::map pour stocker les clients
 
-    while (true) {
-        int nevents = kevent(kq, NULL, 0, events, MAX_EVENTS, NULL);
-        if (nevents == -1) {
-            if (close(kq) == -1) {
-                std::cerr << "Error: close() failed" << std::endl;
-            }
-            throw std::runtime_error("Error: kevent() failed");
-        }
+	for (std::deque<Server>::const_iterator it = config.getServers().begin(); it != config.getServers().end(); it++) {
+		EV_SET(&events[it->fd], it->fd, EVFILT_READ, EV_ADD, 0, 0, NULL);
+		if (kevent(kq, &events[it->fd], 1, NULL, 0, NULL) == -1) {
+			if (close(kq) == -1) {
+				std::cerr << "Error: close() failed" << std::endl;
+			}
+			throw std::runtime_error("Error: kevent() failed");
+		}
+	}
 
-        for (int i = 0; i < nevents; i++) {
-            std::cout << "new connection" << std::endl;
-            int fd = events[i].ident;
+	while (true) {
+		int nevents = kevent(kq, NULL, 0, events, MAX_EVENTS, NULL);
+		if (nevents == -1) {
+			if (close(kq) == -1) {
+				std::cerr << "Error: close() failed" << std::endl;
+			}
+			throw std::runtime_error("Error: kevent() failed");
+		}
 
-            Server const *server = nullptr;
-            for (std::deque<Server>::const_iterator it = config.getServers().begin(); it != config.getServers().end(); it++) {
-                if (it->fd == fd) {
-                    server = &(*it);
-                    break;
-                }
-            }
+		for (int i = 0; i < nevents; i++) {
+			std::cout << "new connection" << std::endl;
+			int fd = events[i].ident;
 
-            if (server == nullptr) {
-                std::cerr << "Error: server not found" << std::endl;
-                continue;
-            }
+			Server const *server = nullptr;
+			for (std::deque<Server>::const_iterator it = config.getServers().begin(); it != config.getServers().end(); it++) {
+				if (it->fd == fd) {
+					server = &(*it);
+					break;
+				}
+			}
 
-            if (events[i].flags & EV_EOF) {
-                std::cout << "Client disconnected" << std::endl;
-                clientsMap.erase(fd); // Supprimer le client du std::map lorsqu'il se déconnecte
-                continue;
-            }
+			if (server == nullptr) {
+				std::cerr << "Error: server not found" << std::endl;
+				continue;
+			}
 
-            if (events[i].flags & EV_ERROR) {
-                std::cerr << "Error: EV_ERROR" << std::endl;
-                continue;
-            }
+			if (events[i].flags & EV_EOF) {
+				std::cout << "Client disconnected" << std::endl;
+				clientsMap.erase(fd); // Supprimer le client du std::map lorsqu'il se déconnecte
+				continue;
+			}
 
-            int client_fd = accept(server->fd, nullptr, nullptr);
-            if (client_fd == -1) {
-                std::cerr << "Error: accept() failed" << std::endl;
-                continue;
-            }
+			if (events[i].flags & EV_ERROR) {
+				std::cerr << "Error: EV_ERROR" << std::endl;
+				continue;
+			}
 
-            std::cout << "Accepted connection" << std::endl;
-            std::cout << "reading request..." << std::endl;
+			int client_fd = accept(server->fd, nullptr, nullptr);
+			if (client_fd == -1) {
+				std::cerr << "Error: accept() failed" << std::endl;
+				continue;
+			}
 
-            char buffer[BUFFER_SIZE];
-            ssize_t bytes_read = read(client_fd, buffer, BUFFER_SIZE);
+			std::cout << "Accepted connection" << std::endl;
+			std::cout << "reading request..." << std::endl;
 
-            if (bytes_read == -1) {
-                std::cerr << "Error: read() failed" << std::endl;
-                if (close(client_fd) == -1) {
-                    std::cerr << "Error: close() failed" << std::endl;
-                }
-                continue;
-            }
+			char buffer[BUFFER_SIZE];
+			ssize_t bytes_read = read(client_fd, buffer, BUFFER_SIZE);
 
-            if (bytes_read == 0) {
-                std::cout << "Client disconnected" << std::endl;
-                if (close(client_fd) == -1) {
-                    std::cerr << "Error: close() failed" << std::endl;
-                }
-                continue;
-            }
+			if (bytes_read == -1) {
+				std::cerr << "Error: read() failed" << std::endl;
+				if (close(client_fd) == -1) {
+					std::cerr << "Error: close() failed" << std::endl;
+				}
+				continue;
+			}
 
-            if (bytes_read == BUFFER_SIZE) {
-                std::cerr << "Error: buffer full" << std::endl;
-                if (close(client_fd) == -1) {
-                    std::cerr << "Error: close() failed" << std::endl;
-                }
-                continue;
-            }
+			if (bytes_read == 0) {
+				std::cout << "Client disconnected" << std::endl;
+				if (close(client_fd) == -1) {
+					std::cerr << "Error: close() failed" << std::endl;
+				}
+				continue;
+			}
 
-            std::cout << "Received " << bytes_read << " bytes" << std::endl;
+			if (bytes_read == BUFFER_SIZE) {
+				std::cerr << "Error: buffer full" << std::endl;
+				if (close(client_fd) == -1) {
+					std::cerr << "Error: close() failed" << std::endl;
+				}
+				continue;
+			}
 
-            buffer[bytes_read] = '\0';
+			std::cout << "Received " << bytes_read << " bytes" << std::endl;
 
-            for (int i = 0; i < bytes_read; i++) {
-                if (buffer[i] == '\r') {
-                    std::cout << "\e[31m\\r\e[0m";
-                } else if (buffer[i] == '\n') {
-                    std::cout << "\e[31m\\n\e[0m" << std::endl;
-                } else {
-                    std::cout << "\x1b[32m" << buffer[i] << "\x1b[0m";
-                }
-            }
+			buffer[bytes_read] = '\0';
 
-            std::string _(buffer, bytes_read);
-            Request request(_, server);
+			for (int i = 0; i < bytes_read; i++) {
+				if (buffer[i] == '\r') {
+					std::cout << "\e[31m\\r\e[0m";
+				} else if (buffer[i] == '\n') {
+					std::cout << "\e[31m\\n\e[0m" << std::endl;
+				} else {
+					std::cout << "\x1b[32m" << buffer[i] << "\x1b[0m";
+				}
+			}
+
+			std::string _(buffer, bytes_read);
+			Request request(_, server);
 			clientsMap[client_fd] = Client(client_fd);
-            if (events[i].flags & EV_EOF) {
-                clientsMap[client_fd].closeConnection();
-                clientsMap.erase(client_fd);
-            }
+			if (events[i].flags & EV_EOF) {
+				clientsMap[client_fd].closeConnection();
+				clientsMap.erase(client_fd);
+			}
 		}
 
 	}
