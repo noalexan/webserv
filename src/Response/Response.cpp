@@ -61,7 +61,7 @@ Response::Response( Request const & request, int const & clientfd, std::map<std:
 						+ std::to_string(ltm->tm_mday) + ' ' // * Day
 						+ date.substr(date.find_first_of(' ') + 1, date.find_first_of(' ')) + ' ' // * Month
 						+ std::to_string(1900 + ltm->tm_year) + ' ' // * Year
-						+ oss.str() // * GMT hour
+						+ oss.str() + ' ' // * GMT hour
 						+ "GMT";
 						
 	_headers["Conection"] = "close";

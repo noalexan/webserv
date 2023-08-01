@@ -127,17 +127,6 @@ void launch(Config const &config) {
 
 			Response	response(request, client_fd, config.getContentTypes());
 
-			// std::string response =	"HTTP/1.1 200 OK\r\n"
-			// 						"Content-Type: application/json\r\n"
-			// 						"\r\n"
-			// 						"{\r\n"
-			// 						"\t\"method\": \"" + request.getMethod() + "\",\r\n"
-			// 						"\t\"root\": \"" + request.getLocation()->root + "\",\r\n"
-			// 						"\t\"target\": \"" + request.getTarget() + "\",\r\n"
-			// 						"\t\"uri\": \"" + request.getUri() + "\",\r\n"
-			// 						"\t\"directory_listing\": \"" + ((request.getLocation()->directoryListing) ? "true" : "false") + "\"\r\n"
-			// 						"}\r\n";
-
 			if (close(client_fd) == -1) {
 				std::cerr << "Error: close() failed" << std::endl;
 			}
