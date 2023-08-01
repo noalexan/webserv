@@ -6,75 +6,121 @@
 #include <Request/Request.hpp>
 #include <Response/Response.hpp>
 
-#define MAX_EVENTS 10
 #define BUFFER_SIZE 1024
 
+// je me place ici j'en rien a foutre
+
+
+
+class Client {
+	
+	private :
+
+		int _socketDescriptor;
+
+	public :
+
+		Client(int socketDescriptor) : _socketDescriptor(socketDescriptor) {}
+		int getSocketDescriptor() { 
+			return _socketDescriptor;
+		}
+		void closeConnection() {
+			close(_socketDescriptor);
+		}
+};
+
+
 void launch(Config const &config) {
+    int kq = kqueue();
+    if (kq == -1) {
+        throw std::runtime_error("Error: kqueue() failed");
+    }
 
-	int kq = kqueue();
-	if (kq == -1) {
-		throw std::runtime_error("Error: kqueue() failed");
-	}
+    struct kevent events[MAX_EVENTS];
+    std::map<int, Client> clientsMap;
 
-	struct kevent events[MAX_EVENTS];
+    for (std::deque<Server>::const_iterator it = config.getServers().begin(); it != config.getServers().end(); it++) {
+        EV_SET(&events[it->fd], it->fd, EVFILT_READ, EV_ADD, 0, 0, NULL);
+        if (kevent(kq, &events[it->fd], 1, NULL, 0, NULL) == -1) {
+            if (close(kq) == -1) {
+                std::cerr << "Error: close() failed" << std::endl;
+            }
+            throw std::runtime_error("Error: kevent() failed");
+        }
+    }
 
-	for (std::deque<Server>::const_iterator it = config.getServers().begin(); it != config.getServers().end(); it++) {
-		EV_SET(&events[it->fd], it->fd, EVFILT_READ, EV_ADD, 0, 0, NULL);
-		if (kevent(kq, &events[it->fd], 1, NULL, 0, NULL) == -1) {
-			if (close(kq) == -1) {
-				std::cerr << "Error: close() failed" << std::endl;
-			}
-			throw std::runtime_error("Error: kevent() failed");
-		}
-	}
+    while (true) {
+        int nevents = kevent(kq, NULL, 0, events, MAX_EVENTS, NULL);
+        if (nevents == -1) {
+            if (close(kq) == -1) {
+                std::cerr << "Error: close() failed" << std::endl;
+            }
+            throw std::runtime_error("Error: kevent() failed");
+        }
 
-	while (true) {
+        for (int i = 0; i < nevents; i++) {
+            std::cout << "new connection" << std::endl;
+            int fd = events[i].ident;
 
-		int nevents = kevent(kq, NULL, 0, events, MAX_EVENTS, NULL);
-		if (nevents == -1) {
-			if (close(kq) == -1) {
-				std::cerr << "Error: close() failed" << std::endl;
-			}
-			throw std::runtime_error("Error: kevent() failed");
-		}
+            Server const *server = nullptr;
+            for (std::deque<Server>::const_iterator it = config.getServers().begin(); it != config.getServers().end(); it++) {
+                if (it->fd == fd) {
+                    server = &(*it);
+                    break;
+                }
+            }
 
-		for (int i = 0; i < nevents; i++) {
+            if (server == nullptr) {
+                std::cerr << "Error: server not found" << std::endl;
+                continue;
+            }
 
-			std::cout << "new connection" << std::endl;
+            if (events[i].flags & EV_EOF) {
+                std::cout << "Client disconnected" << std::endl;
+                clientsMap.erase(fd);
+                continue;
+            }
 
-			int fd = events[i].ident;
+            if (events[i].flags & EV_ERROR) {
+                std::cerr << "Error: EV_ERROR" << std::endl;
+                continue;
+            }
 
-			Server const *server = nullptr;
-			for (std::deque<Server>::const_iterator it = config.getServers().begin(); it != config.getServers().end(); it++) {
-				if (it->fd == fd) {
-					server = &(*it);
-					break;
-				}
-			}
+            int client_fd = accept(server->fd, nullptr, nullptr);
+            if (client_fd == -1) {
+                std::cerr << "Error: accept() failed" << std::endl;
+                continue;
+            }
 
-			if (server == nullptr) {
-				std::cerr << "Error: server not found" << std::endl;
-				continue;
-			}
+            std::cout << "Accepted connection" << std::endl;
+            std::cout << "reading request..." << std::endl;
 
-			if (events[i].flags & EV_EOF) {
-				std::cout << "Client disconnected" << std::endl;
-				continue;
-			}
+			char buffer[BUFFER_SIZE];
+			ssize_t bytes_read = read(client_fd, buffer, BUFFER_SIZE);
 
-			if (events[i].flags & EV_ERROR) {
-				std::cerr << "Error: EV_ERROR" << std::endl;
-				continue;
-			}
+            if (bytes_read == -1) {
+                std::cerr << "Error: read() failed" << std::endl;
+                if (close(client_fd) == -1) {
+                    std::cerr << "Error: close() failed" << std::endl;
+                }
+                continue;
+            }
 
-			int client_fd = accept(server->fd, nullptr, nullptr);
-			if (client_fd == -1) {
-				std::cerr << "Error: accept() failed" << std::endl;
-				continue;
-			}
+            if (bytes_read == 0) {
+                std::cout << "Client disconnected" << std::endl;
+                if (close(client_fd) == -1) {
+                    std::cerr << "Error: close() failed" << std::endl;
+                }
+                continue;
+            }
 
-			std::cout << "Accepted connection" << std::endl;
-			std::cout << "reading request..." << std::endl;
+            if (bytes_read == BUFFER_SIZE) {
+                std::cerr << "Error: buffer full" << std::endl;
+                if (close(client_fd) == -1) {
+                    std::cerr << "Error: close() failed" << std::endl;
+                }
+                continue;
+            }
 
 			std::string _;
 			char buffer[BUFFER_SIZE];
@@ -121,7 +167,11 @@ void launch(Config const &config) {
 			if (close(client_fd) == -1) {
 				std::cerr << "Error: close() failed" << std::endl;
 			}
-
+clientsMap[client_fd] = std::make_unique<Client>(client_fd);
+            if (events[i].flags & EV_EOF) {
+                clientsMap[client_fd].closeConnection();
+                clientsMap.erase(client_fd);
+            }
 		}
 
 	}
