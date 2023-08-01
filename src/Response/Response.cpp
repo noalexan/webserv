@@ -120,6 +120,11 @@ Response::Response( Request const & request, int const & clientfd, Config const 
 				*this << request.getVersion() + ' ' + ((headers.find("Status") != headers.end()) ? headers.find("Status")->second : OK) + "\r\n";
 				*this << "Server: webserv\r\n";
 
+				*this << "Parameters:";
+				for (std::map<std::string, std::string>::const_iterator it = request.getParams().begin(); it != request.getParams().end(); it++)
+					*this << " " + it->first + "=" + it->second + ";";
+				*this << "\r\n";
+
 				for (std::map<std::string, std::string>::iterator it = headers.begin(); it != headers.end(); it++) {
 					if (it->first != "Status") {
 						*this << it->first + ": " + it->second + "\n";
@@ -147,6 +152,11 @@ Response::Response( Request const & request, int const & clientfd, Config const 
 								+ std::to_string(1900 + ltm->tm_year) + ' ' // * Year
 								+ oss.str() // * GMT hour
 								+ "GMT";
+
+			*this << "Parameters:";
+			for (std::map<std::string, std::string>::const_iterator it = request.getParams().begin(); it != request.getParams().end(); it++)
+				*this << " " + it->first + "=" + it->second + ";";
+			*this << "\r\n";
 
 			_headers["Conection"] = "close";
 			_headers["Content-Encoding"] = "identity";

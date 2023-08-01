@@ -7,8 +7,6 @@
 
 # include <netinet/in.h>
 
-# define MAX_EVENTS 100
-
 struct Location {
 	std::string				root;
 	std::deque<std::string>	indexes;

@@ -31,13 +31,14 @@ class Client {
 
 
 void launch(Config const &config) {
+    const int MAX_EVENTS = 100;
     int kq = kqueue();
     if (kq == -1) {
         throw std::runtime_error("Error: kqueue() failed");
     }
 
     struct kevent events[MAX_EVENTS];
-    std::map<int, Client> clientsMap;
+    std::map<int, Client> clientsMap; // Le std::map pour stocker les clients
 
     for (std::deque<Server>::const_iterator it = config.getServers().begin(); it != config.getServers().end(); it++) {
         EV_SET(&events[it->fd], it->fd, EVFILT_READ, EV_ADD, 0, 0, NULL);
@@ -77,7 +78,7 @@ void launch(Config const &config) {
 
             if (events[i].flags & EV_EOF) {
                 std::cout << "Client disconnected" << std::endl;
-                clientsMap.erase(fd);
+                clientsMap.erase(fd); // Supprimer le client du std::map lorsqu'il se déconnecte
                 continue;
             }
 
@@ -95,8 +96,8 @@ void launch(Config const &config) {
             std::cout << "Accepted connection" << std::endl;
             std::cout << "reading request..." << std::endl;
 
-			char buffer[BUFFER_SIZE];
-			ssize_t bytes_read = read(client_fd, buffer, BUFFER_SIZE);
+            char buffer[BUFFER_SIZE];
+            ssize_t bytes_read = read(client_fd, buffer, BUFFER_SIZE);
 
             if (bytes_read == -1) {
                 std::cerr << "Error: read() failed" << std::endl;
@@ -122,52 +123,23 @@ void launch(Config const &config) {
                 continue;
             }
 
-			std::string _;
-			char buffer[BUFFER_SIZE];
-			ssize_t bytes_read;
+            std::cout << "Received " << bytes_read << " bytes" << std::endl;
 
-			while ((bytes_read = read(client_fd, buffer, BUFFER_SIZE))) {
+            buffer[bytes_read] = '\0';
 
-				if (bytes_read == -1) {
-					std::cerr << "Error: read() failed" << std::endl;
-					write(client_fd, "HTTP/1.1 500 Internal Server Error\r\n\r\n", 38);
-					if (close(client_fd) == -1) {
-						std::cerr << "Error: close() failed" << std::endl;
-					}
-					continue;
-				}
+            for (int i = 0; i < bytes_read; i++) {
+                if (buffer[i] == '\r') {
+                    std::cout << "\e[31m\\r\e[0m";
+                } else if (buffer[i] == '\n') {
+                    std::cout << "\e[31m\\n\e[0m" << std::endl;
+                } else {
+                    std::cout << "\x1b[32m" << buffer[i] << "\x1b[0m";
+                }
+            }
 
-				if (bytes_read == 0) {
-					std::cout << "Client disconnected" << std::endl;
-					write(client_fd, "HTTP/1.1 500 Internal Server Error\r\n\r\n", 38);
-					if (close(client_fd) == -1) {
-						std::cerr << "Error: close() failed" << std::endl;
-					}
-					continue;
-				}
-
-				buffer[bytes_read] = '\0';
-
-				_ += buffer;
-
-				if (bytes_read < BUFFER_SIZE) {
-					break;
-				}
-
-			}
-
-			try {
-				Request		request(_, server);
-				Response	response(request, client_fd, config);
-			} catch (std::exception const &e) {
-				std::cerr << e.what() << std::endl;
-				write(client_fd, "HTTP/1.1 500 Internal Server Error\r\n\r\n", 38);
-			}
-
-			if (close(client_fd) == -1) {
-				std::cerr << "Error: close() failed" << std::endl;
-			}
-clientsMap[client_fd] = std::make_unique<Client>(client_fd);
+            std::string _(buffer, bytes_read);
+            Request request(_, server);
+			clientsMap[client_fd] = Client(client_fd);
             if (events[i].flags & EV_EOF) {
                 clientsMap[client_fd].closeConnection();
                 clientsMap.erase(client_fd);
