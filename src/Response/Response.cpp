@@ -140,6 +140,8 @@ Response::Response( Request const & request, int const & clientfd, Config const 
 
 		} else {
 
+			*this << request.getVersion() + " " + OK + "\r\n";
+
 			_headers["Server"] = "webserv";
 
 			std::map<std::string, std::string> const & contentTypes = config.getContentTypes();
@@ -153,7 +155,9 @@ Response::Response( Request const & request, int const & clientfd, Config const 
 								+ oss.str() // * GMT hour
 								+ "GMT";
 
+			// ! *** SENDING THE RESPONSE *** ! //
 			*this << "Parameters:";
+
 			for (std::map<std::string, std::string>::const_iterator it = request.getParams().begin(); it != request.getParams().end(); it++)
 				*this << " " + it->first + "=" + it->second + ";";
 			*this << "\r\n";
@@ -165,12 +169,18 @@ Response::Response( Request const & request, int const & clientfd, Config const 
 			std::cout << "target: " << _target.substr( _target.find_last_of('/') + 1, _target.length() ) << std::endl;
 
 			*this << request.getVersion() + ' ' + OK + "\r\n";
-			for (std::map<std::string, std::string>::iterator it = _headers.begin(); it != _headers.end(); it++)
+
+			std::cout << std::endl << "RESPONSE IS SENT !" << std::endl;
+
+			for (std::map<std::string, std::string>::iterator it = _headers.begin(); it != _headers.end(); it++) {
 				*this << it->first + ": " + it->second + "\r\n";
+				std::cout << it->first + ": " + it->second << "\\r\\n" << "\r\n";
+			}
 			*this << "\r\n";
 
 			*this << readFile(_target);
 			*this << "\r\n";
+			// ! *** RESPONSE IS SENT *** ! //
 
 		}
 
