@@ -1,145 +1,113 @@
 #include <iostream>
 #include <unistd.h>
 #include <sys/event.h>
+#include <arpa/inet.h>
 #include <ExitCode.hpp>
 #include <Config/Config.hpp>
 #include <Request/Request.hpp>
 #include <Response/Response.hpp>
 
 #define BUFFER_SIZE 1024
-
-// je me place ici j'en rien a foutre
-
-// server bloquant pour le moment
-// gerer les cas et le timeout
-// 
-
 #define MAX_EVENTS 10
 
 void launch(Config const &config) {
 
 	int kq = kqueue();
+
 	if (kq == -1) {
 		throw std::runtime_error("Error: kqueue() failed");
 	}
 
-	struct kevent events[MAX_EVENTS];
+	struct kevent events[MAX_EVENTS], changes;
 
 	for (std::deque<Server>::const_iterator it = config.getServers().begin(); it != config.getServers().end(); it++) {
-		EV_SET(&events[it->fd], it->fd, EVFILT_READ, EV_ADD, 0, 0, NULL);
-		if (kevent(kq, &events[it->fd], 1, NULL, 0, NULL) == -1) {
-			if (close(kq) == -1) {
-				std::cerr << "Error: close() failed" << std::endl;
-			}
+		EV_SET(&changes, it->fd, EVFILT_READ, EV_ADD | EV_ENABLE, 0, 0, nullptr);
+		if (kevent(kq, &changes, 1, nullptr, 0, nullptr) == -1) {
 			throw std::runtime_error("Error: kevent() failed");
 		}
 	}
 
+	timespec timeout;
+	timeout.tv_sec = 5;
+	timeout.tv_nsec = 0;
+
+	std::map<int, Server const *> clients;
+
 	while (true) {
 
-		int nevents = kevent(kq, NULL, 0, events, MAX_EVENTS, NULL);
-		if (nevents == -1) {
-			if (close(kq) == -1) {
-				std::cerr << "Error: close() failed" << std::endl;
-			}
-			throw std::runtime_error("Error: kevent() failed");
+		int nev = kevent(kq, nullptr, 0, events, MAX_EVENTS, &timeout);
+
+		if (nev == -1) {
+			std::cerr << "Error: kevent() failed" << std::endl;
+			continue;
 		}
 
-		for (int i = 0; i < nevents; i++) {
-
-			std::cout << "new connection" << std::endl;
-
-			int fd = events[i].ident;
-
-			Server const *server = nullptr;
-			for (std::deque<Server>::const_iterator it = config.getServers().begin(); it != config.getServers().end(); it++) {
-				if (it->fd == fd) {
-					server = &(*it);
-					break;
-				}
-			}
-
-			if (server == nullptr) {
-				std::cerr << "Error: server not found" << std::endl;
-				continue;
-			}
-
-			if (events[i].flags & EV_EOF) {
-				std::cout << "Client disconnected" << std::endl;
-				continue;
-			}
-
-			if (events[i].flags & EV_ERROR) {
-				std::cerr << "Error: EV_ERROR" << std::endl;
-				continue;
-			}
-
-			int client_fd = accept(server->fd, nullptr, nullptr);
-			if (client_fd == -1) {
-				std::cerr << "Error: accept() failed" << std::endl;
-				continue;
-			}
-
-			std::cout << "Accepted connection" << std::endl;
-			std::cout << "reading request..." << std::endl;
-
-			std::string _;
-			char buffer[BUFFER_SIZE];
-			ssize_t bytes_read;
-
-			while ((bytes_read = read(client_fd, buffer, BUFFER_SIZE))) {
-
-				if (bytes_read == -1) {
-					std::cerr << "Error: read() failed" << std::endl;
-					write(client_fd, "HTTP/1.1 500 Internal Server Error\r\n\r\n", 38);
-					if (close(client_fd) == -1) {
-						std::cerr << "Error: close() failed" << std::endl;
-					}
-					continue;
-				}
-
-				if (bytes_read == 0) {
-					std::cout << "Client disconnected" << std::endl;
-					write(client_fd, "HTTP/1.1 500 Internal Server Error\r\n\r\n", 38);
-					if (close(client_fd) == -1) {
-						std::cerr << "Error: close() failed" << std::endl;
-					}
-					continue;
-				}
-
-				buffer[bytes_read] = '\0';
-
-				_ += buffer;
-
-				if (bytes_read < BUFFER_SIZE) {
-					break;
-				}
-
-			}
-
-			std::cout << "Received !" << std::endl;
-
-			// * Request received
-			for (int i = 0; i < bytes_read; i++) {
- 				if (buffer[i] == '\r') {
- 					std::cout << "\e[31m\\r\e[0m";
- 				} else if (buffer[i] == '\n') {
- 					std::cout << "\e[31m\\n\e[0m" << std::endl;
- 				} else {
- 					std::cout << "\x1b[32m" << buffer[i] << "\x1b[0m";
- 				}
- 			}
+		for (int i = 0; i < nev; i++) {
 
 			try {
-				Request		request(_, server);
-				Response	response(request, client_fd, config);
-			} catch (std::exception const &e) {
-				std::cerr << e.what() << std::endl;
-				write(client_fd, "HTTP/1.1 500 Internal Server Error\r\n\r\n", 38);
-			}
 
-			if (close(client_fd) == -1) {
-				std::cerr << "Error: close() failed" << std::endl;
+				Server const * server = nullptr;
+
+				for (std::deque<Server>::const_iterator it = config.getServers().begin(); it != config.getServers().end(); it++) {
+					if (events[i].ident == (uintptr_t) it->fd) {
+
+						sockaddr_in client_address;
+						socklen_t client_address_len = sizeof(client_address);
+						int client_fd = accept(it->fd, (struct sockaddr *) &client_address, &client_address_len);
+						EV_SET(&changes, client_fd, EVFILT_READ, EV_ADD, 0, 0, nullptr);
+
+						if (kevent(kq, &changes, 1, nullptr, 0, &timeout) == -1) {
+							throw std::runtime_error("Error: kevent() failed");
+							continue;
+						}
+
+						std::cout << "Connection from " << inet_ntoa(client_address.sin_addr) << ":" << ntohs(client_address.sin_port) << std::endl;
+
+						server = &(*it);
+						clients[client_fd] = &(*it);
+
+						break;
+
+					}
+				}
+
+				if (server == nullptr && events[i].filter == EVFILT_READ) {
+
+					std::string _;
+					char buffer[BUFFER_SIZE + 1];
+					int bytes_read;
+
+					while ((bytes_read = read(events[i].ident, buffer, BUFFER_SIZE))) {
+
+						if (bytes_read == -1) {
+							throw std::runtime_error("Error: read() failed");
+						}
+
+						buffer[bytes_read] = '\0';
+						_.append(buffer, bytes_read);
+
+						if (bytes_read < BUFFER_SIZE) {
+							break;
+						}
+
+					}
+
+					std::cout << std::endl << "\e[33;1m" << _ << "\e[0m";
+
+					Request request(_, clients[events[i].ident]);
+					Response response(request, events[i].ident, config);
+
+					clients.erase(events[i].ident);
+					// EV_SET(&changes, events[i].ident, EVFILT_READ, EV_DELETE, 0, 0, nullptr);
+
+					if (close(events[i].ident) == -1) {
+						std::cerr << "Error: close() failed" << std::endl;
+					}
+
+				}
+
+			} catch (std::exception &e) {
+				std::cerr << e.what() << std::endl;
 			}
 
 		}
@@ -155,7 +123,7 @@ void listen(Server const &server) {
 		throw std::runtime_error("Error: setsockopt() failed");
 	}
 
-	if (bind(server.fd, (struct sockaddr *)&server.address, sizeof(server.address)) == -1) {
+	if (bind(server.fd, (struct sockaddr *) &server.address, sizeof(server.address)) == -1) {
 		throw std::runtime_error("Error: bind() failed");
 	}
 

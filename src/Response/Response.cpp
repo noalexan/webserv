@@ -2,6 +2,8 @@
 #include <deque>
 #include <sys/stat.h>
 
+#define BUFFER_SIZE 1024
+
 bool	isDirectory( std::string const & path ) {
 	struct stat path_stat;
 	stat(path.c_str(), &path_stat);
@@ -27,7 +29,7 @@ Response::Response( Request const & request, int const & clientfd, Config const 
 
 	if (isDirectory(_target) || _target[_target.length() - 1] == '/') {
 		if (_target[_target.length() - 1] != '/') _target += '/';
-		
+
 		for (std::deque<std::string>::const_iterator it = request.getLocation()->indexes.begin(); it != request.getLocation()->indexes.end(); it++) {
 			if (isFile(_target + *it)) {
 				_target += *it;
@@ -68,40 +70,54 @@ Response::Response( Request const & request, int const & clientfd, Config const 
 			}
 
 			if (pid == 0) {
-				close(pipefd[0]);
-				dup2(pipefd[1], STDOUT_FILENO);
 
 				std::map<std::string, std::string> env = config.getEnvironment();
 
 				env["HTTP_HOST"] = request.getHeaders().find("Host")->second;
-				env["SCRIPT_FILENAME"] = _target;
+				env["SCRIPT_FILENAME"] = _target.substr(_target.find_last_of('/') + 1);
+				// env["REQUEST_URI"] = "/" + request.getUri();
 
 				char **environment = new char*[env.size() + 1];
 				int i = 0;
 				for (std::map<std::string, std::string>::iterator it = env.begin(); it != env.end(); it++) {
-					environment[i] = new char[it->first.size() + it->second.size() + 2];
-					strcpy(environment[i], (it->first + "=" + it->second).c_str());
+					environment[i] = (char *) (it->first + "=" + it->second).c_str();
+					std::cout << environment[i] << std::endl;
 					i++;
 				}
 				environment[env.size()] = nullptr;
 
-				execve("/usr/local/bin/php-cgi", (char *[]) {(char *) "/usr/local/bin/php-cgi", (char *) _target.c_str(), nullptr}, environment);
+				char **args = new char*[2 + request.getParams().size() + 1];
+
+				args[0] = (char *) std::string("/usr/local/bin/php-cgi").c_str();
+				args[1] = (char *) _target.c_str();
+
+				i = 2;
+				for (std::map<std::string, std::string>::const_iterator it = request.getParams().begin(); it != request.getParams().end(); it++) {
+					args[i] = (char *) (it->first + "=" + it->second).c_str();
+					i++;
+				}
+
+				args[2 + request.getParams().size()] = nullptr;
+
+				close(pipefd[0]);
+				dup2(pipefd[1], STDOUT_FILENO);
+
+				execve(args[0], args, environment);
 				exit(EXIT_FAILURE);
 			} else {
 				close(pipefd[1]);
-				char buffer[4096];
+				char buffer[BUFFER_SIZE + 1];
 				int bytes_read;
 
 				std::string _;
 				std::map<std::string, std::string> headers;
 
-				std::cout << "reading php response..." << std::endl;
-				while ((bytes_read = read(pipefd[0], buffer, 4095)) > 0) {
+				while ((bytes_read = read(pipefd[0], buffer, BUFFER_SIZE)) > 0) {
 					buffer[bytes_read] = '\0';
-					_ += buffer;
+					_.append(buffer, bytes_read);
+					if (bytes_read < BUFFER_SIZE) break;
 				}
 
-				std::cout << "parsing php response..." << std::endl;
 				std::istringstream iss(_);
 				std::string line;
 
@@ -112,18 +128,11 @@ Response::Response( Request const & request, int const & clientfd, Config const 
 
 					if (line.find(": ") != std::string::npos) {
 						headers[line.substr(0, line.find(": "))] = line.substr(line.find(": ") + 2, line.length() - 2);
-						std::cout << "header: " << line.substr(0, line.find(": ")) << ": " << line.substr(line.find(": ") + 2, line.length() - 2) << std::endl;
 					}
 				}
 
-				std::cout << "sending php response..." << std::endl;
 				*this << request.getVersion() + ' ' + ((headers.find("Status") != headers.end()) ? headers.find("Status")->second : OK) + "\r\n";
 				*this << "Server: webserv\r\n";
-
-				*this << "Parameters:";
-				for (std::map<std::string, std::string>::const_iterator it = request.getParams().begin(); it != request.getParams().end(); it++)
-					*this << " " + it->first + "=" + it->second + ";";
-				*this << "\r\n";
 
 				for (std::map<std::string, std::string>::iterator it = headers.begin(); it != headers.end(); it++) {
 					if (it->first != "Status") {
@@ -133,8 +142,6 @@ Response::Response( Request const & request, int const & clientfd, Config const 
 
 				*this << "\r\n";
 				*this << _.substr(_.find("\r\n\r\n") + 4, _.length());
-
-				std::cout << "php response sent" << std::endl;
 
 			}
 
@@ -155,32 +162,19 @@ Response::Response( Request const & request, int const & clientfd, Config const 
 								+ oss.str() // * GMT hour
 								+ "GMT";
 
-			// ! *** SENDING THE RESPONSE *** ! //
-			*this << "Parameters:";
-
-			for (std::map<std::string, std::string>::const_iterator it = request.getParams().begin(); it != request.getParams().end(); it++)
-				*this << " " + it->first + "=" + it->second + ";";
-			*this << "\r\n";
-
 			_headers["Conection"] = "close";
 			_headers["Content-Encoding"] = "identity";
 			_headers["Access-Control-Allow-Origin"] = '*';
 
-			std::cout << "target: " << _target.substr( _target.find_last_of('/') + 1, _target.length() ) << std::endl;
-
 			*this << request.getVersion() + ' ' + OK + "\r\n";
-
-			std::cout << std::endl << "RESPONSE IS SENT !" << std::endl;
 
 			for (std::map<std::string, std::string>::iterator it = _headers.begin(); it != _headers.end(); it++) {
 				*this << it->first + ": " + it->second + "\r\n";
-				std::cout << it->first + ": " + it->second << "\\r\\n" << "\r\n";
 			}
 			*this << "\r\n";
 
 			*this << readFile(_target);
 			*this << "\r\n";
-			// ! *** RESPONSE IS SENT *** ! //
 
 		}
 

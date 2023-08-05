@@ -16,9 +16,16 @@
 		<h1>
 			noah montre tes pieds
 		</h1>
+
+		<form action="/" method="get">
+			<input type="file" name="file" id="file">
+			<input type="submit" value="Submit" />
+		</form>
+
 		<p>
 			je te détruis noah
 		</p>
+
 		<img src="ctardy.jpg" alt="La photo de profil du gars le plus BG de l'école" title="WTF ???? C'EST QUOI CE BOGOSS ???" width="1900 px" height="200 px" />
 		<img src="noalexan.jpg" alt="Les plus beau pieds de 42 Network" title="Je ne vous raconte pas comment ses pieds sont incroyable 😩" width="1900 px" height="200 px "/>
 		<img src="mayoub.jpg" alt="Un débilos de 1ère classe" title="Faut pas lui faire confiance..." width="1900 px" height="200 px" />

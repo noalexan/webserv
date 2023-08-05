@@ -4,12 +4,14 @@
 Request::Request(std::string & request, Server const * server) {
 
 	if (request.find("\r\n\r\n") == std::string::npos) {
-		std::cerr << "Error: invalid request" << std::endl;
+		std::cerr << "Error: request not finished" << std::endl;
 		return;
 	}
 
 	_method = request.substr(0, request.find(' '));
 	request.erase(0, request.find(' ') + 1);
+
+	if (_method == "POST") std::cout << std::endl << std::endl;
 
 	_uri = request.substr(0, request.find(' '));
 	request.erase(0, request.find(' ') + 1);
@@ -60,6 +62,33 @@ Request::Request(std::string & request, Server const * server) {
 
 	}
 
+	if (_method == "POST") {
+		if (_headers.find("Content-Type") == _headers.end()) {}
+		else if (_headers.at("Content-Type") == "application/x-www-form-urlencoded") {
+
+			std::string parameters = request.substr(request.find("\r\n\r\n") + 3, request.length());
+
+			while (parameters.length()) {
+				std::string key = parameters.substr(0, parameters.find('='));
+				if (parameters.find('=') != std::string::npos) {
+					parameters.erase(0, parameters.find('=') + 1);
+				} else {
+					parameters.erase(0, parameters.length());
+				}
+				std::string value = parameters.substr(0, parameters.find('&'));
+				if (parameters.find('&') != std::string::npos) {
+					parameters.erase(0, parameters.find('&') + 1);
+				} else {
+					parameters.erase(0, parameters.length());
+				}
+				_params[key] = value;
+				std::cout << "param: " << key << "=" << value << std::endl;
+			}
+		}
+		else { throw std::runtime_error("Error: unsupported Content-Type"); }
+	}
+
+
 	std::string locationPath(_uri);
 
 	std::cout << "looking for location: " << locationPath << std::endl;
@@ -68,6 +97,7 @@ Request::Request(std::string & request, Server const * server) {
 		if (locationPath.empty()) locationPath = "/";
 		std::cout << "looking for location: " << locationPath << std::endl;
 	}
+	std::cout << std::endl;
 
 	_location = &server->locations.at(locationPath);
 	_uri.erase(0, locationPath.length());

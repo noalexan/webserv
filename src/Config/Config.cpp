@@ -24,8 +24,11 @@ Config::Config(char const *ConfigFileName, char const * const * env) {
 
 	for (int i = 0; env[i]; i++) {
 		std::string s(env[i]);
-		if (std::string::size_type pos = s.find('=') != std::string::npos)
+		std::string::size_type pos;
+		if ((pos = s.find('=')) != std::string::npos)
 			_environment[s.substr(0, pos)] = s.substr(pos + 1);
+		else
+			_environment[s] = "";
 	}
 
 	_contentTypes[".txt"]	= "text/plain";
