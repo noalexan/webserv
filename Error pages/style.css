@@ -1,0 +1,25 @@
+@font-face {
+    font-family: Anton;
+    src: url(./assets/fonts/Anton-Regular.ttf);
+}
+
+@font-face {
+    font-family: DMSerif;
+    src: url(./assets/fonts/DMSerifDisplay-Regular.ttf);
+}
+
+/* body {
+    font-family: 'DMSerif', Verdana;
+} */
+
+header {
+    text-align: center;
+}
+
+h1 {
+    font-size: 4.5rem;
+    text-shadow: 8px -6px 8px #00000073;
+    text-transform: uppercase;
+    color :#2515dce9;
+    font-family: 'Anton', sans-serif;
+}
