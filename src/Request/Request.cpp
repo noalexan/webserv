@@ -1,34 +1,38 @@
 #include <Request/Request.hpp>
 #include <iostream>
+#include <sstream>
 
 Request::Request(std::string & request, Server const * server) {
 
 	if (request.find("\r\n\r\n") == std::string::npos) {
-		std::cerr << "Error: request not finished" << std::endl;
-		return;
+		throw std::runtime_error("Error: invalid request");
 	}
 
-	_method = request.substr(0, request.find(' '));
-	request.erase(0, request.find(' ') + 1);
-
-	if (_method == "POST") std::cout << std::endl << std::endl;
-
-	_uri = request.substr(0, request.find(' '));
-	request.erase(0, request.find(' ') + 1);
-
-	_version = request.substr(0, request.find("\r\n"));
-	request.erase(0, request.find("\r\n") + 2);
-
+	std::istringstream iss(request);
 	std::string line;
-	while ((line = request.substr(0, request.find("\r\n"))).length()) {
 
-		request.erase(0, request.find("\r\n") + 2);
+	std::getline(iss, line);
 
-		std::string key = line.substr(0, line.find(": "));
-		line.erase(0, line.find(": ") + 2);
+	_method = line.substr(0, line.find(' '));
+	line.erase(0, line.find(' ') + 1);
 
-		_headers[key] = line;
+	_uri = line.substr(0, line.find(' '));
+	line.erase(0, line.find(' ') + 1);
 
+	_version = line;
+
+	while (std::getline(iss, line)) {
+
+		if (line == "\r") break;
+
+		std::string key = line.substr(0, line.find_first_of(':'));
+		std::string value = line.substr(line.find_first_of(':') + 2, line.length());
+		_headers[key] = value;
+
+	}
+
+	while (std::getline(iss, line)) {
+		_body.append(line);
 	}
 
 	if (_uri.find('?') != std::string::npos) {
@@ -56,38 +60,9 @@ Request::Request(std::string & request, Server const * server) {
 
 			_params[key] = value;
 
-			std::cout << "param: " << key << "=" << value << std::endl;
-
 		}
 
 	}
-
-	if (_method == "POST") {
-		if (_headers.find("Content-Type") == _headers.end()) {}
-		else if (_headers.at("Content-Type") == "application/x-www-form-urlencoded") {
-
-			std::string parameters = request.substr(request.find("\r\n\r\n") + 3, request.length());
-
-			while (parameters.length()) {
-				std::string key = parameters.substr(0, parameters.find('='));
-				if (parameters.find('=') != std::string::npos) {
-					parameters.erase(0, parameters.find('=') + 1);
-				} else {
-					parameters.erase(0, parameters.length());
-				}
-				std::string value = parameters.substr(0, parameters.find('&'));
-				if (parameters.find('&') != std::string::npos) {
-					parameters.erase(0, parameters.find('&') + 1);
-				} else {
-					parameters.erase(0, parameters.length());
-				}
-				_params[key] = value;
-				std::cout << "param: " << key << "=" << value << std::endl;
-			}
-		}
-		else { throw std::runtime_error("Error: unsupported Content-Type"); }
-	}
-
 
 	std::string locationPath(_uri);
 
@@ -97,7 +72,6 @@ Request::Request(std::string & request, Server const * server) {
 		if (locationPath.empty()) locationPath = "/";
 		std::cout << "looking for location: " << locationPath << std::endl;
 	}
-	std::cout << std::endl;
 
 	_location = &server->locations.at(locationPath);
 	_uri.erase(0, locationPath.length());

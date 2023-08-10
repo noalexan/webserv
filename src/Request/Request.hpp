@@ -12,6 +12,7 @@ class Request {
 		std::string _method;
 		std::string _uri;
 		std::string _version;
+		std::string _body;
 
 		Location const * _location;
 
@@ -27,6 +28,7 @@ class Request {
 		std::string const & getMethod() const { return _method; }
 		std::string const & getUri() const { return _uri; }
 		std::string const & getVersion() const { return _version; }
+		std::string const & getBody() const { return _body; }
 		Location const * getLocation() const { return _location; }
 		std::string const & getTarget() const { return _target; }
 		std::map<std::string, std::string> const & getHeaders() const { return _headers; }
