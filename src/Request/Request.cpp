@@ -36,6 +36,8 @@ Request::Request(std::string & request, Server const * server) {
 	}
 
 	while (std::getline(iss, line)) {
+		if (line == "\r\n")
+			continue;
 		_body.append(line);
 	}
 

@@ -50,17 +50,14 @@ class Response {
 
 	private:
 
-		int const							_clientfd;
-		std::string							_target;
-		std::map<std::string, std::string>	_headers;
+		int			_clientfd;
+		std::string	_target;
 
 	public:
 
-		Response(Request const & request, int const & clientfd, Config const & config);
+		Response( Request const & request, int const & clientFd );
 
-		void operator<<(std::string const &);
-
-		std::string	readFile(std::string path) const;
+		void		operator<<(std::string const &);
 
 };
 

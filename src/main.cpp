@@ -13,6 +13,7 @@
 
 void launch(Config const &config) {
 
+// * Création du fd de kqueue: création de la file d'attente
 	int kq = kqueue();
 
 	if (kq == -1) {
@@ -97,12 +98,13 @@ void launch(Config const &config) {
 
 					try {
 						Request request(_, clients[events[i].ident]);
-						Response response(request, events[i].ident, config);
+						Response response(request, events[i].ident);
 					} catch(std::exception & e) {
 						std::cerr << e.what() << std::endl;
 						write(events[i].ident, "HTTP/1.1 500 Internal Server Error\r\n", 36);
 						write(events[i].ident, "Content-Type: text/plain\r\n\r\n", 28);
-						write(events[i].ident, "Internal Server Error\r\n", 23);
+						write(events[i].ident, "Internal Server Error\r\n\r\n", 25);
+						write(events[i].ident, e.what(), strlen(e.what()));
 					}
 
 					clients.erase(events[i].ident);
@@ -223,4 +225,4 @@ int main(int argc, char ** argv) {
 }
 
 // Authors : Charly Tardy, Marwan Ayoub, Noah Alexandre
-// Version : 0.7.1
+// Version : 0.8

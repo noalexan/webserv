@@ -11,7 +11,7 @@ enum BLOCK_LVL {
 	END,
 };
 
-bool getWord(std::string & line, std::string & word) {
+static bool getWord(std::string & line, std::string & word) {
 	line.erase(0, line.find_first_not_of(" \t"));
 	if (line.empty()) return false;
 	word = line.substr(0, line.find_first_of(" \t"));
@@ -19,7 +19,7 @@ bool getWord(std::string & line, std::string & word) {
 	return true;
 }
 
-int parsePort(std::string const & str) {
+static int parsePort(std::string const & str) {
 	for (std::string::const_iterator it = str.begin(); it != str.end(); it++)
 		if ('0' > *it or *it > '9')
 			return 0;
@@ -27,7 +27,7 @@ int parsePort(std::string const & str) {
 	return std::stoi(str);
 }
 
-bool isDir(std::string const & str) {
+static bool isDir(std::string const & str) {
 	struct stat path_stat;
 	stat(str.c_str(), &path_stat);
 	return S_ISDIR(path_stat.st_mode);
@@ -77,8 +77,8 @@ Config::Config(char const *ConfigFileName) {
 		line.pop_back();
 
 		if (endl_char != ';' and endl_char != '{') {
-			if (endl_char != '}') throw std::runtime_error(std::to_string(line_number) + ": Expected a end line character");
-			if (not line.empty()) throw std::runtime_error(std::to_string(line_number) + ": Expected a semicolon at end of line");
+			if (endl_char != '}') throw std::runtime_error(std::to_string(line_number) + ": '}' isn't a valid end of rule");
+			if (not line.empty()) throw std::runtime_error(std::to_string(line_number) + ": Expected a ';' or '{' at end of rules");
 		}
 
 		std::cout << line << " '" << endl_char << "'" << std::endl;
@@ -124,6 +124,7 @@ Config::Config(char const *ConfigFileName) {
 					if (endl_char != '{') throw std::runtime_error(std::to_string(line_number) + ": location must be a block");
 					if (not getWord(line, location.uri) or getWord(line, word)) throw std::runtime_error("location require uri as argument");
 					blocklvl = LOCATION_BLOCK;
+				} else if (word == "max_client_body_size") {
 				} else throw std::runtime_error(std::to_string(line_number) + ": " + word + ": Unrecognized server rule");
 				break;
 
@@ -131,17 +132,24 @@ Config::Config(char const *ConfigFileName) {
 				if (word.empty() and endl_char == '}') {
 					if (location.root.size() == 0) throw std::runtime_error(std::to_string(line_number) + ": No root specified");
 					if (location.indexes.size() == 0) throw std::runtime_error(std::to_string(line_number) + ": No index specified");
-					if (server.locations.find(location.uri) != server.locations.end()) throw std::runtime_error(std::to_string(line_number) + ": Duuplicated location uri");
+					if (server.locations.find(location.uri) != server.locations.end()) throw std::runtime_error(std::to_string(line_number) + ": Duplicated location uri");
 					server.locations[location.uri] = location;
 					blocklvl = SERVER_BLOCK;
 				} else if (word == "root") {
 					if (endl_char == '{') throw std::runtime_error(std::to_string(line_number) + ": 'root' mustn't be a block");
-					if (not getWord(line, location.root) or getWord(line, word)) throw std::runtime_error(std::to_string(line_number) + ": Invalid line");
+					location.root = line.substr(line.find_first_not_of(" \t"));
+					if (location.root.length() == 0) throw std::runtime_error(std::to_string(line_number) + ": no root");
+					if (location.root[location.root.length() - 1] != '/') location.root += '/';
 					if (not isDir(location.root)) throw std::runtime_error(std::to_string(line_number) + ": Unable to found root (" + location.root + ')');
 				} else if (word == "index") {
 					if (endl_char == '{') throw std::runtime_error(std::to_string(line_number) + ": 'index' mustn't be a block");
 					if (not getWord(line, word)) throw std::runtime_error(std::to_string(line_number) + ": Invalid line");
 					do { location.indexes.push_back(word); } while (getWord(line, word));
+				} else if (word == "directory_listing") {
+					if (endl_char == '{') throw std::runtime_error(std::to_string(line_number) + ": 'directory listing' mustn't be a block");
+					if (not getWord(line, word) or getWord(line, word)) throw std::runtime_error(std::to_string(line_number) + ": invalid line");
+					if (word != "on" and word != "off") throw std::runtime_error(std::to_string(line_number) + ": 'directory_listing' argument must be 'on' or 'off'");
+					location.directoryListing = (word == "on");
 				} else throw std::runtime_error(std::to_string(line_number) + ": " + word + ": Unrecognized location rule");
 				break;
 
