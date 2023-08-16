@@ -1,8 +1,9 @@
+#include <ExitCode.hpp>
 #include <Response/Response.hpp>
 #include <deque>
 #include <sys/stat.h>
 
-#define BUFFER_SIZE 1024
+#define BUFFER_SIZE 512
 
 bool	isDirectory( std::string const & path ) {
 	struct stat path_stat;
@@ -46,7 +47,7 @@ Response::Response( Request const & request, int const & clientfd, Config const 
 			*this << "Content-Type: text/plain\r\n\r\n";
 			*this << "Directory Listing\r\n";
 		} else {
-			*this << request.getVersion() + ' ' + FORBIDDEN + "\r\n";
+			*this << request.getVersion() + ' ' + "403 FORBIDDEN\r\n";
 			*this << "Content-Type: text/plain\r\n\r\n";
 			*this << "Forbidden\r\n";
 		}
@@ -63,7 +64,7 @@ Response::Response( Request const & request, int const & clientfd, Config const 
 				throw std::runtime_error("pipe() failed");
 			}
 
-			int pid = fork();
+			pid_t pid = fork();
 
 			if (pid == -1) {
 				throw std::runtime_error("fork() failed");
@@ -71,77 +72,114 @@ Response::Response( Request const & request, int const & clientfd, Config const 
 
 			if (pid == 0) {
 
-				std::map<std::string, std::string> env = config.getEnvironment();
+				dup2(pipefd[1], STDOUT_FILENO);
+				close(pipefd[0]);
+				close(pipefd[1]);
 
-				env["HTTP_HOST"] = request.getHeaders().find("Host")->second;
-				env["SCRIPT_FILENAME"] = _target.substr(_target.find_last_of('/') + 1);
-				// env["REQUEST_URI"] = "/" + request.getUri();
+				std::map<std::string, std::string> const & params = request.getParams();
 
-				char **environment = new char*[env.size() + 1];
-				int i = 0;
-				for (std::map<std::string, std::string>::iterator it = env.begin(); it != env.end(); it++) {
-					environment[i] = (char *) (it->first + "=" + it->second).c_str();
-					std::cout << environment[i] << std::endl;
+				char * argv[3 + params.size()];
+
+				argv[0] = (char *) "/usr/local/bin/php-cgi";
+				argv[1] = (char *) _target.c_str();
+
+				int i = 2;
+
+				for (std::map<std::string, std::string>::const_iterator it = params.begin(); it != params.end(); it++) {
+					std::string param = it->first + "=" + it->second;
+					argv[i] = (char *) param.c_str();
 					i++;
 				}
-				environment[env.size()] = nullptr;
 
-				char **args = new char*[2 + request.getParams().size() + 1];
+				argv[i] = nullptr;
 
-				args[0] = (char *) std::string("/usr/local/bin/php-cgi").c_str();
-				args[1] = (char *) _target.c_str();
+				std::string http_host = "HTTP_HOST=192.168.1.69";
+				std::string script_filename = "SCRIPT_FILENAME=" + _target;
+
+				char * env[3 + params.size()];
+
+				env[0] = (char *) http_host.c_str();
+				env[1] = (char *) script_filename.c_str();
 
 				i = 2;
-				for (std::map<std::string, std::string>::const_iterator it = request.getParams().begin(); it != request.getParams().end(); it++) {
-					args[i] = (char *) (it->first + "=" + it->second).c_str();
+
+				for (std::map<std::string, std::string>::const_iterator it = params.begin(); it != params.end(); it++) {
+					std::string param = it->first + "=" + it->second;
+					env[i] = (char *) param.c_str();
 					i++;
 				}
 
-				args[2 + request.getParams().size()] = nullptr;
+				env[i] = nullptr;
 
-				close(pipefd[0]);
-				dup2(pipefd[1], STDOUT_FILENO);
+				execve(argv[0], argv, env);
 
-				execve(args[0], args, environment);
-				exit(EXIT_FAILURE);
+				exit(CGI_FAILURE);
+
 			} else {
+
 				close(pipefd[1]);
+
+				// WNOHANG  ->   Ne pas bloquer si aucun fils ne s’est terminé.
+
+				int status;
+				waitpid(pid, &status, 0 /* WNOHANG ? */);
+
+				if (status != 0) {
+					throw std::runtime_error("Error: CGI failed");
+				}
+
 				char buffer[BUFFER_SIZE + 1];
-				int bytes_read;
+				ssize_t bytes_read;
 
 				std::string _;
-				std::map<std::string, std::string> headers;
 
-				while ((bytes_read = read(pipefd[0], buffer, BUFFER_SIZE)) > 0) {
+				do {
+					
+					bytes_read = read(pipefd[0], buffer, BUFFER_SIZE);
+
+					if (bytes_read == -1) {
+						throw std::runtime_error("Error: read() failed");
+					}
+
 					buffer[bytes_read] = '\0';
-					_.append(buffer, bytes_read);
-					if (bytes_read < BUFFER_SIZE) break;
-				}
+					_.append(buffer);
 
-				std::istringstream iss(_);
-				std::string line;
+				} while (bytes_read == BUFFER_SIZE);
 
-				while (std::getline(iss, line)) {
-					if (line == "") {
-						break;
+				if (_.find("\r\n\r\n") != std::string::npos) {
+
+					std::map<std::string, std::string> headers;
+					std::string body = _.substr(_.find("\r\n\r\n") + 4, _.length());
+					_ = _.substr(0, _.find("\r\n\r\n"));
+
+					std::istringstream iss(_);
+					std::string line;
+
+					while (std::getline(iss, line)) {
+						std::string key = line.substr(0, line.find_first_of(':'));
+						std::string value = line.substr(line.find_first_of(':') + 2, line.length());
+						headers[key] = value;
 					}
 
-					if (line.find(": ") != std::string::npos) {
-						headers[line.substr(0, line.find(": "))] = line.substr(line.find(": ") + 2, line.length() - 2);
+					if (headers.find("Status") != headers.end()) {
+						*this << request.getVersion() + ' ' + headers["Status"] + "\r\n";
+					} else {
+						*this << request.getVersion() + ' ' + OK + "\r\n";
 					}
-				}
 
-				*this << request.getVersion() + ' ' + ((headers.find("Status") != headers.end()) ? headers.find("Status")->second : OK) + "\r\n";
-				*this << "Server: webserv\r\n";
-
-				for (std::map<std::string, std::string>::iterator it = headers.begin(); it != headers.end(); it++) {
-					if (it->first != "Status") {
-						*this << it->first + ": " + it->second + "\n";
+					for (std::map<std::string, std::string>::iterator it = headers.begin(); it != headers.end(); it++) {
+						if (it->first != "Status") {
+							*this << it->first + ": " + it->second + "\n";
+						}
 					}
-				}
 
-				*this << "\r\n";
-				*this << _.substr(_.find("\r\n\r\n") + 4, _.length());
+					*this << "\r\n";
+					*this << body;
+
+				} else {
+					*this << request.getVersion() + ' ' + OK + "\r\n\r\n";
+					*this << _;
+				}
 
 			}
 
@@ -159,7 +197,7 @@ Response::Response( Request const & request, int const & clientfd, Config const 
 								+ std::to_string(ltm->tm_mday) + ' ' // * Day
 								+ date.substr(date.find_first_of(' ') + 1, date.find_first_of(' ')) + ' ' // * Month
 								+ std::to_string(1900 + ltm->tm_year) + ' ' // * Year
-								+ oss.str() // * GMT hour
+								+ oss.str() + ' ' // * GMT hour
 								+ "GMT";
 
 			_headers["Conection"] = "close";
@@ -185,7 +223,7 @@ Response::Response( Request const & request, int const & clientfd, Config const 
 	}
 }
 
-void	Response::operator<<( std::string const & o ) { write(_clientfd, o.c_str(), o.length()); }
+void	Response::operator<<( std::string const & o ) { write(_clientfd, o.c_str(), o.length()); std::cout << o << std::flush; }
 
 std::string	Response::readFile( std::string path ) const {
 	std::ifstream file(path);

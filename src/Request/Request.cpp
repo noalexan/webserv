@@ -14,10 +14,14 @@ Request::Request(std::string & request, Server const * server) {
 	std::getline(iss, line);
 
 	_method = line.substr(0, line.find(' '));
-	line.erase(0, line.find(' ') + 1);
+
+	line.erase(0, line.find(' '));
+	line.erase(0, line.find_first_not_of(' '));
 
 	_uri = line.substr(0, line.find(' '));
-	line.erase(0, line.find(' ') + 1);
+
+	line.erase(0, line.find(' '));
+	line.erase(0, line.find_first_not_of(' '));
 
 	_version = line;
 

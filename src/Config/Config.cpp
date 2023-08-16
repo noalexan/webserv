@@ -1,34 +1,45 @@
 #include <Config/Config.hpp>
-
 #include <iostream>
 #include <fstream>
+#include <sys/stat.h>
 
-#include <unistd.h>
+enum BLOCK_LVL {
+	BEGIN,
+	HTTP_BLOCK,
+	SERVER_BLOCK,
+	LOCATION_BLOCK,
+	END,
+};
 
-static std::string getWord(std::string &line) {
-	std::string word;
-	line.erase(0, line.find_first_not_of(" \t\n"));
-	word = line.substr(0, line.find_first_of(" \t\n;"));
+bool getWord(std::string & line, std::string & word) {
+	line.erase(0, line.find_first_not_of(" \t"));
+	if (line.empty()) return false;
+	word = line.substr(0, line.find_first_of(" \t"));
 	line.erase(0, word.length());
-	return word;
+	return true;
+}
+
+int parsePort(std::string const & str) {
+	for (std::string::const_iterator it = str.begin(); it != str.end(); it++)
+		if ('0' > *it or *it > '9')
+			return 0;
+	if (str.length() >= 6) return 0;
+	return std::stoi(str);
+}
+
+bool isDir(std::string const & str) {
+	struct stat path_stat;
+	stat(str.c_str(), &path_stat);
+	return S_ISDIR(path_stat.st_mode);
 }
 
 Config::Config() {}
 
-Config::Config(char const *ConfigFileName, char const * const * env) {
+Config::Config(char const *ConfigFileName) {
 
-	std::ifstream ConfigFile(ConfigFileName);
-	if (!ConfigFile.is_open()) {
-		throw std::runtime_error("Error: cannot open config file");
-	}
-
-	for (int i = 0; env[i]; i++) {
-		std::string s(env[i]);
-		std::string::size_type pos;
-		if ((pos = s.find('=')) != std::string::npos)
-			_environment[s.substr(0, pos)] = s.substr(pos + 1);
-		else
-			_environment[s] = "";
+	std::ifstream file(ConfigFileName);
+	if (not file.good()) {
+		throw std::runtime_error("Unable to open file");
 	}
 
 	_contentTypes[".txt"]	= "text/plain";
@@ -43,254 +54,107 @@ Config::Config(char const *ConfigFileName, char const * const * env) {
 	_contentTypes[".ico"]	= "image/x-icon";
 	_contentTypes[".mp4"]	= "video/mp4";
 
+	Server server;
+	Location location;
+
 	std::string line;
-	int line_number = 0;
-	while (std::getline(ConfigFile, line)) {
+	std::string save;
+	unsigned int line_number = 0;
+	unsigned short blocklvl = BEGIN;
+	while (not save.empty() or (std::getline(file, line) and ++line_number)) {
 
-		line_number++;
+		line = save + line;
 
-		line.erase(0, line.find_first_not_of(" \t\n"));
-		line.erase(line.find_last_not_of(" \t\n") + 1);
+		line.erase(0, line.find_first_not_of(" \t"));
+		line.erase(line.find_last_not_of(" \t") + 1);
 
-		if (line.empty() || line[0] == '#') {
-			continue;
+		if (line.empty() or line[0] == '#') continue;
+
+		save = line.substr(line.find_first_of(";{}") + 1);
+		line.erase(line.find_first_of(";{}") + 1);
+
+		char endl_char = line[line.size() - 1];
+		line.pop_back();
+
+		if (endl_char != ';' and endl_char != '{') {
+			if (endl_char != '}') throw std::runtime_error(std::to_string(line_number) + ": Expected a end line character");
+			if (not line.empty()) throw std::runtime_error(std::to_string(line_number) + ": Expected a semicolon at end of line");
 		}
 
-		if (line[line.length() - 1] != ';' && line[line.length() - 1] != '{' && line[line.length() - 1] != '}') {
-			ConfigFile.close();
-			throw std::runtime_error("Error: " + std::to_string(line_number) + ": missing ';' at the end of line");
-		}
+		std::cout << line << " '" << endl_char << "'" << std::endl;
 
-		std::string word = getWord(line);
+		std::string word;
+		getWord(line, word);
 
-		if (word == "http") {
+		switch (blocklvl) {
 
-			if (getWord(line) != "{" || getWord(line).length()) {
-				ConfigFile.close();
-				throw std::runtime_error("Error: " + std::to_string(line_number) + ": invalid line");
-			}
+			case BEGIN:
+				if (word == "http") {
+					if (getWord(line, word)) throw std::runtime_error(std::to_string(line_number) + ": Invalid line");
+					if (endl_char != '{') throw std::runtime_error(std::to_string(line_number) + ": 'http' rule must be a block");
+					blocklvl = HTTP_BLOCK;
+				} else throw std::runtime_error(std::to_string(line_number) + ": " + word + ": Unrecognized rule");
+				break;
 
-			std::cout << "Entering http block" << std::endl;
+			case HTTP_BLOCK:
+				if (word.empty() and endl_char == '}') blocklvl = END;
+				else if (word == "server") {
+					if (getWord(line, word)) throw std::runtime_error(std::to_string(line_number) + ": Invalid line");
+					if (endl_char != '{') throw std::runtime_error(std::to_string(line_number) + ": 'server' rule must be a block");
+					blocklvl = SERVER_BLOCK;
+				} else throw std::runtime_error(std::to_string(line_number) + ": " + word + ": Unrecognized http rule");
+				break;
 
-			while (std::getline(ConfigFile, line)) {
-
-				line_number++;
-
-				line.erase(0, line.find_first_not_of(" \t\n"));
-				line.erase(line.find_last_not_of(" \t\n") + 1);
-
-				if (line == "}") {
-					break;
-				}
-
-				if (line.empty() || line[0] == '#') {
-					continue;
-				}
-
-				if (line[line.length() - 1] != ';' && line[line.length() - 1] != '{' && line[line.length() - 1] != '}') {
-					ConfigFile.close();
-					throw std::runtime_error("Error: " + std::to_string(line_number) + ": missing ';' at the end of line");
-				}
-
-				std::string word = getWord(line);
-
-				if (word == "server") {
-
-					if (getWord(line) != "{" || getWord(line).length()) {
-						ConfigFile.close();
-						throw std::runtime_error("Error: " + std::to_string(line_number) + ": invalid line");
-					}
-
-					std::cout << "Entering server block" << std::endl;
-
-					struct Server server;
-					struct Location mainLocation;
-
-					mainLocation.directoryListing = true;
-
-					while (std::getline(ConfigFile, line)) {
-
-						line_number++;
-
-						line.erase(0, line.find_first_not_of(" \t\n"));
-						line.erase(line.find_last_not_of(" \t\n") + 1);
-
-						if (line == "}") {
-							break;
-						}
-
-						if (line.empty() || line[0] == '#') {
-							continue;
-						}
-
-						if (line[line.length() - 1] != ';' && line[line.length() - 1] != '{' && line[line.length() - 1] != '}') {
-							ConfigFile.close();
-							throw std::runtime_error("Error: " + std::to_string(line_number) + ": missing ';' at the end of line");
-						}
-
-						std::string word = getWord(line);
-
-						if (word == "listen") {
-							std::string listen = getWord(line);
-							try {
-								server.port = std::stoi(listen);
-							} catch (std::exception &) {
-								ConfigFile.close();
-								throw std::runtime_error("Error: " + std::to_string(line_number) + ": invalid port");
-							}
-							std::cout << "port: " << server.port << std::endl;
-						} else if (word == "server_name") {
-							std::string host;
-							std::cout << "hosts: " << line << std::endl;
-							while ((host = getWord(line)).length()) server.hosts.push_back(host);
-						} else if (word == "root") {
-
-							line.erase(0, line.find_first_not_of(" \t"));
-							std::string root = line.substr(0, line.find_last_of(';'));
-
-							if (root[root.length() - 1] != '/') root += '/';
-
-							std::cout << "root: '" << root << "'" << std::endl;
-
-							if (access(root.c_str(), F_OK) == -1) {
-								ConfigFile.close();
-								throw std::runtime_error("Error: " + std::to_string(line_number) + ": root directory does not exist");
-							}
-
-							mainLocation.root = root;
-						} else if (word == "directory_listing") {
-							mainLocation.directoryListing = ((getWord(line) == "on") ? true : false);
-						} else if (word == "index") {
-							std::string index;
-							std::cout << "index: " << line << std::endl;
-							while ((index = getWord(line)).length()) mainLocation.indexes.push_back(index);
-						} else if (word == "location") {
-
-							std::string location_path = getWord(line);
-
-							if (getWord(line) != "{" || getWord(line).length()) {
-								ConfigFile.close();
-								throw std::runtime_error("Error: " + std::to_string(line_number) + ": invalid line");
-							}
-
-							if (location_path == "/") {
-								ConfigFile.close();
-								throw std::runtime_error("Error: " + std::to_string(line_number) + ": for location /, please specify root and index in server block");
-							}
-
-							if (server.locations.find(location_path) != server.locations.end()) {
-								ConfigFile.close();
-								throw std::runtime_error("Error: " + std::to_string(line_number) + ": duplicate location");
-							}
-
-							std::cout << "Entering location block" << std::endl;
-							std::cout << "Setting location for " << location_path << std::endl;
-
-							struct Location location;
-
-							while (std::getline(ConfigFile, line)) {
-
-								line_number++;
-
-								line.erase(0, line.find_first_not_of(" \t\n"));
-								line.erase(line.find_last_not_of(" \t\n") + 1);
-
-								if (line == "}") {
-									break;
-								}
-
-								if (line.empty() || line[0] == '#') {
-									continue;
-								}
-
-								if (line[line.length() - 1] != ';') {
-									ConfigFile.close();
-									throw std::runtime_error("Error: " + std::to_string(line_number) + ": missing ';' at the end of line");
-								}
-
-								std::string word = getWord(line);
-
-								if (word == "root") {
-									line.erase(0, line.find_first_not_of(" \t"));
-									std::string root = line.substr(0, line.find_last_of(';'));
-									if (root[root.length() - 1] != '/') root += '/';
-									std::cout << "root: '" << root << "'" << std::endl;
-
-									if (access(root.c_str(), F_OK) == -1) {
-										ConfigFile.close();
-										throw std::runtime_error("Error: " + std::to_string(line_number) + ": root directory does not exist");
-									}
-
-									location.root = root;
-								} else if (word == "index") {
-									std::string index;
-									std::cout << "index: " << line << std::endl;
-									while ((index = getWord(line)).length()) location.indexes.push_back(index);
-								} else {
-									ConfigFile.close();
-									throw std::runtime_error("Error: " + std::to_string(line_number) + ": unrecognized location rule");
-								}
-
-							}
-
-							server.locations[location_path] = location;
-
-							std::cout << "Exiting location block" << std::endl;
-
-						} else {
-							ConfigFile.close();
-							throw std::runtime_error("Error: " + std::to_string(line_number) + ": unrecognized server rule");
-						}
-
-					}
-
-					if (mainLocation.root.empty()) {
-						ConfigFile.close();
-						throw std::runtime_error("Error: " + std::to_string(line_number) + ": no root specified in server block");
-					}
-
-					if (mainLocation.indexes.empty()) {
-						ConfigFile.close();
-						throw std::runtime_error("Error: " + std::to_string(line_number) + ": no index specified in server block");
-					}
-
-					server.locations["/"] = mainLocation;
-
-					server.address.sin_family = AF_INET;
-					server.address.sin_port = htons(server.port);
-					server.address.sin_addr.s_addr = htonl(INADDR_ANY);
-
+			case SERVER_BLOCK:
+				if (word.empty() and endl_char == '}') {
+					if (server.port == 0) throw std::runtime_error(std::to_string(line_number) + ": No port specified");
+					server.address = (sockaddr_in) {.sin_family = AF_INET, .sin_port = htons(server.port), .sin_addr.s_addr = htonl(INADDR_ANY)};
 					server.fd = socket(AF_INET, SOCK_STREAM, 0);
-
-					if (server.fd == -1) {
-						ConfigFile.close();
-						throw std::runtime_error("Error: " + std::to_string(line_number) + ": socket() failed");
-					}
-
 					_servers.push_back(server);
+					server.port = 0;
+					blocklvl = HTTP_BLOCK;
+				} else if (word == "listen") {
+					if (endl_char == '{') throw std::runtime_error(std::to_string(line_number) + ": 'listen' mustn't be a block");
+					if (not getWord(line, word) or not (server.port = parsePort(word)) or getWord(line, word)) throw std::runtime_error(std::to_string(line_number) + ": Invalid port");
+				} else if (word == "server_name") {
+					if (endl_char == '{') throw std::runtime_error(std::to_string(line_number) + ": 'server_name' mustn't be a block");
+					if (not getWord(line, word)) throw std::runtime_error(std::to_string(line_number) + ": Invalid line");
+					do { server.hosts.push_back(word); } while (getWord(line, word));
+				} else if (word == "location") {
+					if (endl_char != '{') throw std::runtime_error(std::to_string(line_number) + ": location must be a block");
+					if (not getWord(line, location.uri) or getWord(line, word)) throw std::runtime_error("location require uri as argument");
+					blocklvl = LOCATION_BLOCK;
+				} else throw std::runtime_error(std::to_string(line_number) + ": " + word + ": Unrecognized server rule");
+				break;
 
-					std::cout << "Exiting server block" << std::endl;
+			case LOCATION_BLOCK:
+				if (word.empty() and endl_char == '}') {
+					if (location.root.size() == 0) throw std::runtime_error(std::to_string(line_number) + ": No root specified");
+					if (location.indexes.size() == 0) throw std::runtime_error(std::to_string(line_number) + ": No index specified");
+					if (server.locations.find(location.uri) != server.locations.end()) throw std::runtime_error(std::to_string(line_number) + ": Duuplicated location uri");
+					server.locations[location.uri] = location;
+					blocklvl = SERVER_BLOCK;
+				} else if (word == "root") {
+					if (endl_char == '{') throw std::runtime_error(std::to_string(line_number) + ": 'root' mustn't be a block");
+					if (not getWord(line, location.root) or getWord(line, word)) throw std::runtime_error(std::to_string(line_number) + ": Invalid line");
+					if (not isDir(location.root)) throw std::runtime_error(std::to_string(line_number) + ": Unable to found root (" + location.root + ')');
+				} else if (word == "index") {
+					if (endl_char == '{') throw std::runtime_error(std::to_string(line_number) + ": 'index' mustn't be a block");
+					if (not getWord(line, word)) throw std::runtime_error(std::to_string(line_number) + ": Invalid line");
+					do { location.indexes.push_back(word); } while (getWord(line, word));
+				} else throw std::runtime_error(std::to_string(line_number) + ": " + word + ": Unrecognized location rule");
+				break;
 
-				} else {
-					ConfigFile.close();
-					throw std::runtime_error("Error: " + std::to_string(line_number) + ": unrecognized rule");
-				}
+			case END:
+				throw std::runtime_error(std::to_string(line_number) + ": off-block line");
 
-			}
-
-			std::cout << "Exiting http block" << std::endl;
-
-		} else {
-			ConfigFile.close();
-			throw std::runtime_error("Error: " + std::to_string(line_number) + ": unrecognized rule");
 		}
 
 	}
 
-	ConfigFile.close();
-
-	if (_servers.empty()) {
-		throw std::runtime_error("Error: no server specified");
+	if (blocklvl != END) {
+		throw std::runtime_error("Expected a closing brace at end of block");
 	}
 
+	file.close();
 }

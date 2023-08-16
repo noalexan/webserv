@@ -8,6 +8,7 @@
 # include <netinet/in.h>
 
 struct Location {
+	std::string				uri;
 	std::string				root;
 	std::deque<std::string>	indexes;
 	bool					directoryListing;
@@ -28,18 +29,14 @@ class Config {
 
 		std::deque<Server>					_servers;
 		std::map<std::string, std::string>	_contentTypes;
-		std::map<std::string, std::string>	_environment;
 
 	public:
 
 		Config();
-		Config(char const * ConfigFileName, char const * const * env);
+		Config(char const * ConfigFileName);
 
-		std::deque<Server>			& getServers( void ) { return _servers; }
-		std::deque<Server> const	& getServers( void ) const { return _servers; }
-
-		std::map<std::string, std::string> const	& getContentTypes() const { return _contentTypes; }
-		std::map<std::string, std::string> const	& getEnvironment() const { return _environment; }
+		std::deque<Server> const & getServers() const { return _servers; }
+		std::map<std::string, std::string> const & getContentTypes() const { return _contentTypes; }
 
 };
 

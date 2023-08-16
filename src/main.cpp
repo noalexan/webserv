@@ -2,12 +2,13 @@
 #include <unistd.h>
 #include <sys/event.h>
 #include <arpa/inet.h>
+#include <fcntl.h>
 #include <ExitCode.hpp>
 #include <Config/Config.hpp>
 #include <Request/Request.hpp>
 #include <Response/Response.hpp>
 
-#define BUFFER_SIZE 1024
+#define BUFFER_SIZE 256
 #define MAX_EVENTS 10
 
 void launch(Config const &config) {
@@ -27,13 +28,13 @@ void launch(Config const &config) {
 		}
 	}
 
-	timespec timeout;
-	timeout.tv_sec = 5;
-	timeout.tv_nsec = 0;
-
 	std::map<int, Server const *> clients;
 
 	while (true) {
+
+		timespec timeout;
+		timeout.tv_sec = 5;
+		timeout.tv_nsec = 0;
 
 		int nev = kevent(kq, nullptr, 0, events, MAX_EVENTS, &timeout);
 
@@ -54,14 +55,16 @@ void launch(Config const &config) {
 						sockaddr_in client_address;
 						socklen_t client_address_len = sizeof(client_address);
 						int client_fd = accept(it->fd, (struct sockaddr *) &client_address, &client_address_len);
+						fcntl(client_fd, F_SETFL, O_NONBLOCK, FD_CLOEXEC);
 						EV_SET(&changes, client_fd, EVFILT_READ, EV_ADD, 0, 0, nullptr);
+
+						timeout.tv_sec = 5;
+						timeout.tv_nsec = 0;
 
 						if (kevent(kq, &changes, 1, nullptr, 0, &timeout) == -1) {
 							throw std::runtime_error("Error: kevent() failed");
 							continue;
 						}
-
-						std::cout << "Connection from " << inet_ntoa(client_address.sin_addr) << ":" << ntohs(client_address.sin_port) << std::endl;
 
 						server = &(*it);
 						clients[client_fd] = &(*it);
@@ -75,9 +78,11 @@ void launch(Config const &config) {
 
 					std::string _;
 					char buffer[BUFFER_SIZE + 1];
-					int bytes_read;
+					ssize_t bytes_read;
 
-					while ((bytes_read = read(events[i].ident, buffer, BUFFER_SIZE))) {
+					do {
+						
+						bytes_read = read(events[i].ident, buffer, BUFFER_SIZE);
 
 						if (bytes_read == -1) {
 							throw std::runtime_error("Error: read() failed");
@@ -86,19 +91,21 @@ void launch(Config const &config) {
 						buffer[bytes_read] = '\0';
 						_.append(buffer, bytes_read);
 
-						if (bytes_read < BUFFER_SIZE) {
-							break;
-						}
+					} while (bytes_read == BUFFER_SIZE);
 
+					std::cout << "\e[33;1m" << _ << "\e[0m" << std::endl;
+
+					try {
+						Request request(_, clients[events[i].ident]);
+						Response response(request, events[i].ident, config);
+					} catch(std::exception & e) {
+						std::cerr << e.what() << std::endl;
+						write(events[i].ident, "HTTP/1.1 500 Internal Server Error\r\n", 36);
+						write(events[i].ident, "Content-Type: text/plain\r\n\r\n", 28);
+						write(events[i].ident, "Internal Server Error\r\n", 23);
 					}
 
-					std::cout << std::endl << "\e[33;1m" << _ << "\e[0m";
-
-					Request request(_, clients[events[i].ident]);
-					Response response(request, events[i].ident, config);
-
 					clients.erase(events[i].ident);
-					// EV_SET(&changes, events[i].ident, EVFILT_READ, EV_DELETE, 0, 0, nullptr);
 
 					if (close(events[i].ident) == -1) {
 						std::cerr << "Error: close() failed" << std::endl;
@@ -145,7 +152,7 @@ void cleanup(Config const &config) {
 	}
 }
 
-int main(int argc, char ** argv, char ** env) {
+int main(int argc, char ** argv) {
 
 	// Check arguments
 	if (argc != 2) {
@@ -153,10 +160,15 @@ int main(int argc, char ** argv, char ** env) {
 		return USAGE_FAILURE;
 	}
 
+	if (signal(SIGPIPE, SIG_IGN) == SIG_ERR) {
+		std::cerr << "Error: signal() failed" << std::endl;
+		return SIGNAL_FAILURE;
+	}
+
 	// Getting config
 	Config config;
 	try {
-		config = Config(argv[1], env);
+		config = Config(argv[1]);
 	} catch (std::exception &e) {
 		std::cerr << e.what() << std::endl;
 		try {
