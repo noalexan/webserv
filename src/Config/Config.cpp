@@ -2,6 +2,7 @@
 #include <iostream>
 #include <fstream>
 #include <sys/stat.h>
+#include <unistd.h>
 
 enum BLOCK_LVL {
 	BEGIN,
@@ -19,11 +20,10 @@ static bool getWord(std::string & line, std::string & word) {
 	return true;
 }
 
-static int parsePort(std::string const & str) {
-	for (std::string::const_iterator it = str.begin(); it != str.end(); it++)
-		if ('0' > *it or *it > '9')
-			return 0;
+static int parseInt(std::string const & str) {
 	if (str.length() >= 6) return 0;
+	for (std::string::const_iterator it = str.begin(); it != str.end(); it++)
+		if ('0' > *it or *it > '9') return 0;
 	return std::stoi(str);
 }
 
@@ -31,6 +31,16 @@ static bool isDir(std::string const & str) {
 	struct stat path_stat;
 	stat(str.c_str(), &path_stat);
 	return S_ISDIR(path_stat.st_mode);
+}
+
+static bool isFile(std::string const & str) {
+	struct stat path_stat;
+	stat(str.c_str(), &path_stat);
+	return S_ISREG(path_stat.st_mode);
+}
+
+static bool isExecutable(std::string const & str) {
+	return access(str.c_str(), X_OK) + 1;
 }
 
 Config::Config() {}
@@ -56,6 +66,8 @@ Config::Config(char const *ConfigFileName) {
 
 	Server server;
 	Location location;
+
+	location.directory_listing = false;
 
 	std::string line;
 	std::string save;
@@ -115,16 +127,29 @@ Config::Config(char const *ConfigFileName) {
 					blocklvl = HTTP_BLOCK;
 				} else if (word == "listen") {
 					if (endl_char == '{') throw std::runtime_error(std::to_string(line_number) + ": 'listen' mustn't be a block");
-					if (not getWord(line, word) or not (server.port = parsePort(word)) or getWord(line, word)) throw std::runtime_error(std::to_string(line_number) + ": Invalid port");
+					if (not getWord(line, word) or getWord(line, word)) throw std::runtime_error(std::to_string(line_number) + ": 'listen' expect an argument");
+					if ((server.port = parseInt(word)) == 0) throw std::runtime_error(std::to_string(line_number) + ": Invalid port");
 				} else if (word == "server_name") {
 					if (endl_char == '{') throw std::runtime_error(std::to_string(line_number) + ": 'server_name' mustn't be a block");
 					if (not getWord(line, word)) throw std::runtime_error(std::to_string(line_number) + ": Invalid line");
 					do { server.hosts.push_back(word); } while (getWord(line, word));
 				} else if (word == "location") {
 					if (endl_char != '{') throw std::runtime_error(std::to_string(line_number) + ": location must be a block");
-					if (not getWord(line, location.uri) or getWord(line, word)) throw std::runtime_error("location require uri as argument");
+					if (not getWord(line, location.uri) or getWord(line, word)) throw std::runtime_error(std::to_string(line_number) + ": location require uri as argument");
 					blocklvl = LOCATION_BLOCK;
 				} else if (word == "max_client_body_size") {
+					if (not getWord(line, word) or getWord(line, word)) throw std::runtime_error(std::to_string(line_number) + ": 'max_client_body_size' expect an argument");
+					if ((server.max_client_body_size = parseInt(word)) == 0) throw std::runtime_error(std::to_string(line_number) + ": Invalid size");
+				} else if (word == "cgi") {
+					std::string executable;
+					if (not getWord(line, word) or not getWord(line, executable) or getWord(line, word)) throw std::runtime_error(std::to_string(line_number) + ": 'cgi' expect two arguments");
+					if (not isFile(executable) or not isExecutable(executable)) throw std::runtime_error(std::to_string(line_number) + ": unable to execute (" + executable + ")");
+					server.cgi[word] = executable;
+				} else if (word == "upload") {
+					std::string root;
+					if (not getWord(line, word) or not getWord(line, root) or getWord(line, word)) throw std::runtime_error(std::to_string(line_number) + ": 'upload' expect two arguments");
+					if (not isDir(root)) throw std::runtime_error(std::to_string(line_number) + ": unable to access directory (" + root + ")");
+					server.uploads[word] = root;
 				} else throw std::runtime_error(std::to_string(line_number) + ": " + word + ": Unrecognized server rule");
 				break;
 
@@ -149,7 +174,7 @@ Config::Config(char const *ConfigFileName) {
 					if (endl_char == '{') throw std::runtime_error(std::to_string(line_number) + ": 'directory listing' mustn't be a block");
 					if (not getWord(line, word) or getWord(line, word)) throw std::runtime_error(std::to_string(line_number) + ": invalid line");
 					if (word != "on" and word != "off") throw std::runtime_error(std::to_string(line_number) + ": 'directory_listing' argument must be 'on' or 'off'");
-					location.directoryListing = (word == "on");
+					location.directory_listing = (word == "on");
 				} else throw std::runtime_error(std::to_string(line_number) + ": " + word + ": Unrecognized location rule");
 				break;
 

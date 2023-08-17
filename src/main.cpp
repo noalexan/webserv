@@ -13,7 +13,6 @@
 
 void launch(Config const &config) {
 
-// * Création du fd de kqueue: création de la file d'attente
 	int kq = kqueue();
 
 	if (kq == -1) {
@@ -82,12 +81,15 @@ void launch(Config const &config) {
 					ssize_t bytes_read;
 
 					do {
-						
+
 						bytes_read = read(events[i].ident, buffer, BUFFER_SIZE);
 
 						if (bytes_read == -1) {
+							// continue;
 							throw std::runtime_error("Error: read() failed");
 						}
+
+						buffer[BUFFER_SIZE] = 0;
 
 						buffer[bytes_read] = '\0';
 						_.append(buffer, bytes_read);
@@ -97,13 +99,14 @@ void launch(Config const &config) {
 					std::cout << "\e[33;1m" << _ << "\e[0m" << std::endl;
 
 					try {
-						Request request(_, clients[events[i].ident]);
-						Response response(request, events[i].ident);
+						Server const & server = * clients[events[i].ident];
+						Request request(_, server);
+						Response response(request, events[i].ident, server);
 					} catch(std::exception & e) {
 						std::cerr << e.what() << std::endl;
 						write(events[i].ident, "HTTP/1.1 500 Internal Server Error\r\n", 36);
 						write(events[i].ident, "Content-Type: text/plain\r\n\r\n", 28);
-						write(events[i].ident, "Internal Server Error\r\n\r\n", 25);
+						write(events[i].ident, "Internal Server Error\r\n", 25);
 						write(events[i].ident, e.what(), strlen(e.what()));
 					}
 

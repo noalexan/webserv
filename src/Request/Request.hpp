@@ -23,7 +23,7 @@ class Request {
 
 	public:
 
-		Request(std::string & request, Server const * server);
+		Request(std::string & request, Server const & server);
 
 		std::string const & getMethod() const { return _method; }
 		std::string const & getUri() const { return _uri; }

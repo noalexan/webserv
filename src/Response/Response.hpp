@@ -4,6 +4,7 @@
 # include <iostream>
 # include <fstream>
 # include <sstream>
+# include <string>
 # include <unistd.h>
 
 # include <ctime>
@@ -50,12 +51,13 @@ class Response {
 
 	private:
 
-		int			_clientfd;
-		std::string	_target;
+		int									_clientfd;
+		std::string							_target;
+		std::map<std::string, std::string>	_header;
 
 	public:
 
-		Response( Request const & request, int const & clientFd );
+		Response(Request const & request, int const & clientFd, Server const & server);
 
 		void		operator<<(std::string const &);
 

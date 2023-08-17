@@ -2,7 +2,7 @@
 #include <iostream>
 #include <sstream>
 
-Request::Request(std::string & request, Server const * server) {
+Request::Request(std::string & request, Server const & server) {
 
 	if (request.find("\r\n\r\n") == std::string::npos) {
 		throw std::runtime_error("Error: invalid request");
@@ -38,7 +38,7 @@ Request::Request(std::string & request, Server const * server) {
 	while (std::getline(iss, line)) {
 		if (line == "\r\n")
 			continue;
-		_body.append(line);
+		_body.append(line + '\n');
 	}
 
 	if (_uri.find('?') != std::string::npos) {
@@ -73,14 +73,13 @@ Request::Request(std::string & request, Server const * server) {
 	std::string locationPath(_uri);
 
 	std::cout << "looking for location: " << locationPath << std::endl;
-	while (server->locations.find(locationPath) == server->locations.end()) {
+	while (server.locations.find(locationPath) == server.locations.end()) {
 		locationPath = locationPath.substr(0, locationPath.find_last_of('/'));
 		if (locationPath.empty()) locationPath = "/";
 		std::cout << "looking for location: " << locationPath << std::endl;
 	}
 
-	_location = &server->locations.at(locationPath);
-	_uri.erase(0, locationPath.length());
-	_target = _location->root + _uri;
+	_location = &server.locations.at(locationPath);
+	_target = _location->root + _uri.substr(locationPath.length());
 
 }

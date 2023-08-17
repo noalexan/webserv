@@ -5,29 +5,7 @@
 		<meta http-equiv="X-UA-Compatible" content="IE=edge" >
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" >
 		<title> CACA </title>
-
-		<style>
-
-			body {
-				animation: background .2s linear infinite;
-			}
-
-			@keyframes background {
-				0% {
-					background: darkmagenta;
-				}
-
-				50% {
-					background: cyan
-				}
-
-				100% {
-					background: goldenrod;
-				}
-			}
-
-		</style>
-
+		<link rel="icon" type="image/x-icon" href="internet.ico" />
 	</head>
 	<body>
 
@@ -39,21 +17,6 @@
 			noah montre tes pieds
 		</h1>
 
-		<ul>
-			<li>
-				<a href="images/">images</a>
-			</li>
-			<li>
-				<a href="cgi/">cgi</a>
-			</li>
-			<li>
-				<a href="about/">about</a>
-			</li>
-			<li>
-				<a href="upload/">upload</a>
-			</li>
-		</ul>
-
 		<form action="/upload" method="post" enctype="multipart/form-data">
 			<input type="file" name="file" id="file">
 			<input type="submit" value="Submit" />
@@ -63,9 +26,8 @@
 			je te détruis noah
 		</p>
 
+		<img src="/images/ctardy.jpg" alt="La photo de profil du gars le plus BG de l'école" title="WTF ???? C'EST QUOI CE BOGOSS ???" width="1900 px" height="200 px" />
 		<img src="/images/noalexan.jpg" alt="Les plus beau pieds de 42 Network" title="Je ne vous raconte pas comment ses pieds sont incroyable 😩" width="1900 px" height="200 px "/>
 		<img src="/images/mayoub.jpg" alt="Un débilos de 1ère classe" title="Faut pas lui faire confiance..." width="1900 px" height="200 px" />
-		<img src="/images/ctardy.jpg" alt="La photo de profil du gars le plus BG de l'école" title="WTF ???? C'EST QUOI CE BOGOSS ???" width="1900 px" height="200 px" />
-
 	</body>
 </html>
