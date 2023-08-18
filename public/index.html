@@ -1,16 +1,28 @@
+
 <!DOCTYPE html>
 <html lang="en">
 	<head>
 		<meta charset="UTF-8" >
 		<meta http-equiv="X-UA-Compatible" content="IE=edge" >
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" >
-		<title> CACA </title>
+		<title>CACA</title>
+
+		<!-- ca check le source code ?? 😏😏 -->
 
 		<style>
 
 			body {
 				animation: background .2s linear infinite;
 			}
+
+			h1 { animation: fontsize 5s ease-in-out infinite;}
+
+			img#noalexan { animation: swipe 1s linear infinite; }
+			img#mayoub { animation: swipe 1.3s linear infinite; }
+			img#ctardy { animation: swipe 1.6s linear infinite; }
+
+			img { transition: .2s ease-in-out;animation: rotationLETSGO 2s linear infinite; }
+			img:hover { transform: rotate(360deg); }
 
 			@keyframes background {
 				0% {
@@ -26,17 +38,50 @@
 				}
 			}
 
+			@keyframes rotationLETSGO {
+				50%, 70% {
+					transform: rotate(0deg);
+				}
+				60% {
+					transform: rotate(360deg);
+				}
+			}
+
+			@keyframes swipe {
+				0% {
+					margin-left: 0px;
+				}
+				100% {
+					margin-left: calc(100% - 600px);
+				}
+			}
+
+			@keyframes fontsize {
+				0%, 100% {
+					font-size: 30px;
+				}
+				50% {
+					font-size: 40px
+				}
+			}
+
 		</style>
 
 	</head>
 	<body>
 
+		<img src="images/logo.png" alt="logo" />
+
 		<?php
 			echo "Hello World !";
 		?>
 
-		<h1>
+		<h2>
 			noah montre tes pieds
+		</h2>
+
+		<h1>
+			WE ARE CHERCHING F0r 1 WEB DISIGNERR URGENT POR FAVOR THANKS PLEAZE
 		</h1>
 
 		<ul>
@@ -63,9 +108,9 @@
 			je te détruis noah
 		</p>
 
-		<img src="/images/noalexan.jpg" alt="Les plus beau pieds de 42 Network" title="Je ne vous raconte pas comment ses pieds sont incroyable 😩" width="1900 px" height="200 px "/>
-		<img src="/images/mayoub.jpg" alt="Un débilos de 1ère classe" title="Faut pas lui faire confiance..." width="1900 px" height="200 px" />
-		<img src="/images/ctardy.jpg" alt="La photo de profil du gars le plus BG de l'école" title="WTF ???? C'EST QUOI CE BOGOSS ???" width="1900 px" height="200 px" />
+		<img id="noalexan" src="/images/noalexan.jpg" alt="Les plus beau pieds de 42 Network" title="Je ne vous raconte pas comment ses pieds sont incroyable 😩" width="600px" height="150px"/>
+		<img id="mayoub" src="/images/mayoub.jpg" alt="Un débilos de 1ère classe" title="Faut pas lui faire confiance..." width="600px" height="150px" />
+		<img id="ctardy" src="/images/ctardy.jpg" alt="La photo de profil du gars le plus BG de l'école" title="WTF ???? C'EST QUOI CE BOGOSS ???" width="600px" height="150px" />
 
 	</body>
 </html>
