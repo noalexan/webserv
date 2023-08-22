@@ -4,9 +4,9 @@
 
 Request::Request(std::string & request, Server const & server) {
 
-	if (request.find("\r\n\r\n") == std::string::npos) {
-		throw std::runtime_error("Error: invalid request");
-	}
+	// if (request.find("\r\n\r\n") == std::string::npos) {
+	// 	throw std::runtime_error("Error: invalid request");
+	// }
 
 	std::istringstream iss(request);
 	std::string line;
@@ -23,7 +23,7 @@ Request::Request(std::string & request, Server const & server) {
 	line.erase(0, line.find(' '));
 	line.erase(0, line.find_first_not_of(' '));
 
-	_version = line;
+	_version = line.substr(0, line.find_first_of("\r\n"));
 
 	while (std::getline(iss, line)) {
 

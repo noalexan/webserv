@@ -1,8 +1,8 @@
 #include <Response/Response.hpp>
 #include <ExitCode.hpp>
-#include <deque>
-#include <sys/stat.h>
+#include <unistd.h>
 #include <dirent.h>
+#include <signal.h>
 
 #define BUFFER_SIZE 256
 
@@ -28,58 +28,20 @@ static bool isFile(std::string const & path) {
 
 Response::Response(Request const & request, int const & clientfd, Server const & server): _clientfd(clientfd) {
 
-	time_t		tmm = time(0);
-	tm			*ltm = localtime(&tmm);
-	tm			*gmt = gmtime(&tmm);
-	std::string	date = ctime(&tmm);
-	std::ostringstream	oss;
-	oss << std::put_time(gmt, "%H:%M:%S");
+	// *this << request.getVersion() + ' ' + OK + "\r\n";
+	// *this << "Content-Type: text/plain\r\n\r\n";
+	// *this << "Hello, World!\r\n";
+	// return;
+
+	// time_t		tmm = time(0);
+	// tm			*ltm = localtime(&tmm);
+	// tm			*gmt = gmtime(&tmm);
+	// std::string	date = ctime(&tmm);
+	// std::ostringstream	oss;
+	// oss << std::put_time(gmt, "%H:%M:%S");
 
 	std::string	line;
 	_target = request.getTarget();
-
-	if (request.getMethod() == "POST") {
-
-		for (std::map<std::string, std::string>::const_iterator it = server.uploads.begin(); it != server.uploads.end(); it++) {
-			std::cout << it->first << ", " << it->second << std::endl;
-
-			// std::stringstream  body(request.getBody());
-			// while (std::getline(body, line)) {
-
-			// 	std::cout << "\e[0;32The filename in the body ==== " << line.substr( line.find("filename") + 10 , line.find("\"") - 1) << "\e[0m" <<std::endl;
-			// 	if (line.find("filename")) {
-			// 		// std::ostream newFile( body.substr( body.find("filename"), body.find(";") ) );
-			// 	}
-
-			// }
-
-			// if (strncmp(request.getUri(), ))
-
-			std::string const & body = request.getBody();
-
-			if (request.getHeaders().find("Content-Type") != request.getHeaders().end()) {
-				std::string content_type = request.getHeaders().at("Content-Type");
-				std::string boundary = "--" + content_type.substr(content_type.find("boundary=") + 9);
-				boundary.pop_back();
-				std::string content = body.substr(body.find(boundary) + boundary.length() + 1, body.find(boundary + "--") - boundary.length() - 2);
-				std::string file_headers = content.substr(0, content.find("\r\n\r\n"));
-				std::string file_content = content.substr(content.find("\r\n\r\n") + 4);
-				file_content.pop_back();
-				std::cout << "\e[31;1m" << file_headers << "\e[0m" << std::endl;
-				std::cout << "\e[32;1m" << file_content << "\e[0m" << std::endl;
-				std::string filename = _target + '/' + file_headers.substr(file_headers.find("filename=\"") + 10);
-				filename = filename.substr(0, filename.find_first_of("\"\r\n"));
-				std::cout << filename << std::endl;
-				std::ofstream file(filename);
-				std::string extention = filename.substr(filename.find_last_of('.') + 1);
-				file << file_content;
-				*this << request.getVersion() + ' ' + OK + "\r\n\r\n";
-				*this << content;
-				return;
-			}
-		}
-
-	}
 
 	if (isDirectory(_target) || _target[_target.length() - 1] == '/') {
 		if (_target[_target.length() - 1] != '/') _target += '/';
@@ -106,13 +68,15 @@ Response::Response(Request const & request, int const & clientfd, Server const &
 			if (d) {
 				*this << request.getVersion() + ' ' + OK + "\r\n";
 				*this << "Content-Type: text/html\r\n\r\n";
-				while ((dir = readdir(d)) != NULL) {
-					if (strcmp(dir->d_name, ".") == 0)
-						continue;
-					else if (strcmp(dir->d_name, "..") == 0)
-						*this << "<a href=\"..\">Parent Directory</a><br/>\r\n";
-					else
-						*this << std::string("<a href=\"") + uri + dir->d_name + "\">" + dir->d_name + "</a><br/>\r\n";
+				while ((dir = readdir(d)) != nullptr) {
+					if (dir->d_name[0] == '.') {
+						if (dir->d_name[1] == 0) continue;
+						if (dir->d_name[1] == '.' && dir->d_name[2] == 0) {
+							*this << "<a href=\"..\">Parent Directory</a><br/>\r\n";
+							continue;
+						}
+					}
+					*this << std::string("<a href=\"") + uri + dir->d_name + "\">" + dir->d_name + "</a><br/>\r\n";
 				}
 			}
 
@@ -148,7 +112,7 @@ Response::Response(Request const & request, int const & clientfd, Server const &
 					close(pipefd[0]);
 					dup2(pipefd[1], 1);
 					execve(it->second.c_str(), (char *[]) {(char *) it->second.c_str(), (char *) _target.c_str()}, nullptr);
-					exit(CGI_FAILURE);
+					exit(1);
 				}
 
 				close(pipefd[1]);
@@ -162,11 +126,12 @@ Response::Response(Request const & request, int const & clientfd, Server const &
 					bytes_read = read(pipefd[0], buffer, BUFFER_SIZE);
 
 					if (bytes_read == -1) {
-						throw std::runtime_error("Error: read() failed");
+						continue;
+						throw std::runtime_error("read() failed");
 					}
 
 					buffer[BUFFER_SIZE] = 0;
-					_.append(buffer, bytes_read);
+					_.append(buffer);
 
 				} while (bytes_read == BUFFER_SIZE);
 
@@ -183,27 +148,27 @@ Response::Response(Request const & request, int const & clientfd, Server const &
 			}
 		}
 
-		std::string content;
-
-		try {
-			content = readFile(_target);
-		} catch (std::exception const & e) {
-			std::cerr << e.what() << std::endl;
-			content = e.what();
-		}
-
 		*this << request.getVersion() + ' ' + OK + "\r\n";
 		*this << "Server: webserv\r\n";
-		*this << "Date: "	+ date.substr(0, date.find_first_of(' ')) + ", " // * Day Week
-							+ std::to_string(ltm->tm_mday) + ' ' // * Day
-							+ date.substr(date.find_first_of(' ') + 1, date.find_first_of(' ')) + ' ' // * Month
-							+ std::to_string(1900 + ltm->tm_year) + ' ' // * Year
-							+ oss.str() + ' ' // * GMT hour
-							+ "GMT\r\n";
+
+		// *this << "Date: "	+ date.substr(0, date.find_first_of(' ')) + ", " // * Day Week
+		// 					+ std::to_string(ltm->tm_mday) + ' ' // * Day
+		// 					+ date.substr(date.find_first_of(' ') + 1, date.find_first_of(' ')) + ' ' // * Month
+		// 					+ std::to_string(1900 + ltm->tm_year) + ' ' // * Year
+		// 					+ oss.str() + ' ' // * GMT hour
+		// 					+ "GMT\r\n";
+
 		*this << "Connection: close\r\n";
 		*this << "Content-Encoding: identity\r\n";
 		*this << "Access-Control-Allow-Origin: *\r\n\r\n";
-		*this << content;
+
+		try {
+			*this << readFile(_target);
+		} catch (std::exception const & e) {
+			std::cerr << e.what() << std::endl;
+			*this << e.what();
+		}
+
 		*this << "\r\n";
 
 	} else {
