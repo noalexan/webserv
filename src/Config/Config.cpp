@@ -139,17 +139,17 @@ Config::Config(char const *ConfigFileName) {
 					blocklvl = LOCATION_BLOCK;
 				} else if (word == "max_client_body_size") {
 					if (not getWord(line, word) or getWord(line, word)) throw std::runtime_error(std::to_string(line_number) + ": 'max_client_body_size' expect an argument");
-					if ((server.max_client_body_size = parseInt(word)) == 0) throw std::runtime_error(std::to_string(line_number) + ": Invalid size");
+					if ((server.max_client_body_size = std::stol(word)) == 0) throw std::runtime_error(std::to_string(line_number) + ": Invalid size");
 				} else if (word == "cgi") {
 					std::string executable;
 					if (not getWord(line, word) or not getWord(line, executable) or getWord(line, word)) throw std::runtime_error(std::to_string(line_number) + ": 'cgi' expect two arguments");
 					if (not isFile(executable) or not isExecutable(executable)) throw std::runtime_error(std::to_string(line_number) + ": unable to execute (" + executable + ")");
 					server.cgi[word] = executable;
 				} else if (word == "upload") {
-					std::string root;
-					if (not getWord(line, word) or not getWord(line, root) or getWord(line, word)) throw std::runtime_error(std::to_string(line_number) + ": 'upload' expect two arguments");
-					if (not isDir(root)) throw std::runtime_error(std::to_string(line_number) + ": unable to access directory (" + root + ")");
-					server.uploads[word] = root;
+					if (not getWord(line, word)) throw std::runtime_error(std::to_string(line_number) + ": 'upload' expect two arguments");
+					line = line.substr(line.find_first_of(' ') + 1);
+					if (not isDir(line)) throw std::runtime_error(std::to_string(line_number) + ": unable to access directory (" + line + ")");
+					server.uploads[word] = line;
 				} else throw std::runtime_error(std::to_string(line_number) + ": " + word + ": Unrecognized server rule");
 				break;
 

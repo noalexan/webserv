@@ -11,6 +11,12 @@
 #define BUFFER_SIZE 256
 #define MAX_EVENTS 10
 
+struct Client {
+	Server const * server;
+	Request request;
+	Response response;
+};
+
 void launch(Config const &config) {
 
 	int kq = kqueue();
@@ -28,7 +34,7 @@ void launch(Config const &config) {
 		}
 	}
 
-	std::map<int, Server const *> clients;
+	std::map<int, Client> clients;
 
 	while (true) {
 
@@ -47,75 +53,63 @@ void launch(Config const &config) {
 
 			try {
 
-				Server const * server = nullptr;
-
 				for (std::deque<Server>::const_iterator it = config.getServers().begin(); it != config.getServers().end(); it++) {
 					if (events[i].ident == (uintptr_t) it->fd) {
+
+						std::cout << "new connection" << std::endl;
 
 						sockaddr_in client_address;
 						socklen_t client_address_len = sizeof(client_address);
 						int client_fd = accept(it->fd, (struct sockaddr *) &client_address, &client_address_len);
 						fcntl(client_fd, F_SETFL, O_NONBLOCK, FD_CLOEXEC);
-						EV_SET(&changes, client_fd, EVFILT_READ, EV_ADD, 0, 0, nullptr);
+						EV_SET(&changes, client_fd, EVFILT_READ, EV_ADD, 0, 0, nullptr); // je t'ai vu jouer a la marelle
 
-						timeout.tv_sec = 5;
-						timeout.tv_nsec = 0;
+						timeout.tv_sec = 5; // sautillant sur le macadame
+						timeout.tv_nsec = 0; // te voici maintenant jouvancelle
 
-						if (kevent(kq, &changes, 1, nullptr, 0, &timeout) == -1) {
-							throw std::runtime_error("Error: kevent() failed");
-							continue;
-						}
+						if (kevent(kq, &changes, 1, nullptr, 0, &timeout) == -1) { // dans un corps pas tout a fait femme
+							throw std::runtime_error("Error: kevent() failed"); // je vais t'apprendre un jeu extra
+							continue; // qu'il ne faudra pas repeter
+						} // la regle est simple tu verras
 
-						server = &(*it);
-						clients[client_fd] = &(*it);
-
+						clients[client_fd].server = &(*it); // il suffit juste de s'embrasser
+						clients[client_fd].request.setFd(client_fd);
+						clients[client_fd].request.parse();
+						clients[client_fd].response.setFd(client_fd);
 						break;
-
 					}
 				}
 
-				if (server == nullptr && events[i].filter == EVFILT_READ) {
+				if (clients.find(events[i].ident) != clients.end()) {
+					switch (events[i].filter) {
+						case EVFILT_READ:
+							clients[events[i].ident].request.read();
 
-					std::string _;
-					char buffer[BUFFER_SIZE + 1];
-					ssize_t bytes_read;
+							if (clients[events[i].ident].request.isFinished()) {
+								EV_SET(&changes, events[i].ident, EVFILT_WRITE, EV_ADD, 0, 0, nullptr);
 
-					do {
+								timeout.tv_sec = 5; // привет
+								timeout.tv_nsec = 0;
 
-						bytes_read = read(events[i].ident, buffer, BUFFER_SIZE);
+								if (kevent(kq, &changes, 1, nullptr, 0, &timeout) == -1) {
+									throw std::runtime_error("Error: kevent() failed");
+									continue;
+								}
+							}
 
-						if (bytes_read == -1) {
-							// continue;
-							throw std::runtime_error("Error: read() failed");
-						}
+							break;
 
-						buffer[BUFFER_SIZE] = 0;
+						case EVFILT_WRITE:
+							clients[events[i].ident].response.write();
 
-						buffer[bytes_read] = '\0';
-						_.append(buffer, bytes_read);
+							if (clients[events[i].ident].response.isFinished()) {
+								if (close(events[i].ident) == -1) {
+									throw std::runtime_error("close() failed");
+								}
+							}
 
-					} while (bytes_read == BUFFER_SIZE);
-
-					std::cout << "\e[33;1m" << _ << "\e[0m" << std::endl;
-
-					try {
-						Server const & server = * clients[events[i].ident];
-						Request request(_, server);
-						Response response(request, events[i].ident, server);
-					} catch(std::exception & e) {
-						std::cerr << e.what() << std::endl;
-						write(events[i].ident, "HTTP/1.1 500 Internal Server Error\r\n", 36);
-						write(events[i].ident, "Content-Type: text/plain\r\n\r\n", 28);
-						write(events[i].ident, "Internal Server Error\r\n", 25);
-						write(events[i].ident, e.what(), strlen(e.what()));
+							break;
 					}
-
-					clients.erase(events[i].ident);
-
-					if (close(events[i].ident) == -1) {
-						std::cerr << "Error: close() failed" << std::endl;
-					}
-
 				}
 
 			} catch (std::exception &e) {
@@ -160,7 +154,7 @@ void cleanup(Config const &config) {
 int main(int argc, char ** argv) {
 
 	// Check arguments
-	if (argc != 2) {
+	if (argc > 2) {
 		std::cerr << "Usage: " << ((argc) ? argv[0] : "webserv") << " <config_file>" << std::endl;
 		return USAGE_FAILURE;
 	}
@@ -173,7 +167,7 @@ int main(int argc, char ** argv) {
 	// Getting config
 	Config config;
 	try {
-		config = Config(argv[1]);
+		config = Config((argc == 2) ? argv[1] : "webserv.conf");
 	} catch (std::exception &e) {
 		std::cerr << e.what() << std::endl;
 		try {

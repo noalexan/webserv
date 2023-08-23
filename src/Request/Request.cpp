@@ -1,17 +1,43 @@
 #include <Request/Request.hpp>
+#include <sys/socket.h>
 #include <iostream>
 #include <sstream>
+#include <unistd.h>
 
-Request::Request(std::string & request, Server const & server) {
+#define BUFFER_SIZE 256
 
-	// if (request.find("\r\n\r\n") == std::string::npos) {
-	// 	throw std::runtime_error("Error: invalid request");
-	// }
+Request::Request(): _finished(false) {}
 
-	std::istringstream iss(request);
+void Request::setFd(int fd) {
+	_fd = fd;
+}
+
+void Request::read() {
+	char buffer[BUFFER_SIZE];
+	ssize_t bytes_read;
+	bytes_read = recv(_fd, buffer, BUFFER_SIZE, MSG_DONTWAIT);
+	if (bytes_read == -1) {
+		perror("recv"); // la go elle me fait rire a faire ses meeting a starbucks
+		throw std::runtime_error("recv() failed");
+	}
+	if (bytes_read != BUFFER_SIZE) _finished = true;
+	_request.append(buffer, bytes_read);
+}
+
+bool Request::isFinished() {
+	return _finished;
+}
+
+void Request::print() {
+	std::cout << _request << std::endl;
+}
+
+void Request::parse() {
+
+	std::istringstream iss(_request);
 	std::string line;
 
-	std::getline(iss, line);
+	std::getline(iss, line); // a cote il essaie de pecho la go breeeff
 
 	_method = line.substr(0, line.find(' '));
 
@@ -35,51 +61,13 @@ Request::Request(std::string & request, Server const & server) {
 
 	}
 
-	while (std::getline(iss, line)) {
-		if (line == "\r\n")
-			continue;
-		_body.append(line + '\n');
+	std::cout << "CA MARCHE OUUUUUUU" << std::endl; // ** https://www.youtube.com/watch?v=PYkA4WpR5Ic&pp=ygUgZ2VvcmdlIG1vdXN0YWtpIGxlcyBlYXV4IGRlIG1hcnM%3D
+
+	for (std::map<std::string, std::string>::const_iterator it = _headers.begin(); it != _headers.end(); it++) {
+		std::cout << it->first << ": " << it->second << "\r\n";
 	}
-
-	if (_uri.find('?') != std::string::npos) {
-
-		std::string parameters = _uri.substr(_uri.find('?') + 1, _uri.length());
-		_uri.erase(_uri.find('?'), _uri.length());
-
-		while (parameters.length()) {
-
-			std::string key = parameters.substr(0, parameters.find('='));
-
-			if (parameters.find('=') != std::string::npos) {
-				parameters.erase(0, parameters.find('=') + 1);
-			} else {
-				parameters.erase(0, parameters.length());
-			}
-
-			std::string value = parameters.substr(0, parameters.find('&'));
-
-			if (parameters.find('&') != std::string::npos) {
-				parameters.erase(0, parameters.find('&') + 1);
-			} else {
-				parameters.erase(0, parameters.length());
-			}
-
-			_params[key] = value;
-
-		}
-
-	}
-
-	std::string locationPath(_uri);
-
-	std::cout << "looking for location: " << locationPath << std::endl;
-	while (server.locations.find(locationPath) == server.locations.end()) {
-		locationPath = locationPath.substr(0, locationPath.find_last_of('/'));
-		if (locationPath.empty()) locationPath = "/";
-		std::cout << "looking for location: " << locationPath << std::endl;
-	}
-
-	_location = &server.locations.at(locationPath);
-	_target = _location->root + _uri.substr(locationPath.length());
 
 }
+
+// ? https://www.youtube.com/watch?v=VqsU_4KOEA8
+// tu peux relancer un terminal ????????????????????????????????????????????????????????????????????????????????????????????????????????

@@ -22,7 +22,7 @@ struct Server {
 
 	int									port;
 	int									fd;
-	int									max_client_body_size;
+	unsigned long						max_client_body_size;
 	struct sockaddr_in					address;
 };
 
