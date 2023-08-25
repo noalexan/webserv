@@ -5,17 +5,10 @@
 #include <fcntl.h>
 #include <ExitCode.hpp>
 #include <Config/Config.hpp>
-#include <Request/Request.hpp>
-#include <Response/Response.hpp>
+#include <Client.hpp>
 
 #define BUFFER_SIZE 256
 #define MAX_EVENTS 10
-
-struct Client {
-	Server const * server;
-	Request request;
-	Response response;
-};
 
 void launch(Config const &config) {
 
@@ -28,7 +21,7 @@ void launch(Config const &config) {
 	struct kevent events[MAX_EVENTS], changes;
 
 	for (std::deque<Server>::const_iterator it = config.getServers().begin(); it != config.getServers().end(); it++) {
-		EV_SET(&changes, it->fd, EVFILT_READ, EV_ADD | EV_ENABLE, 0, 0, nullptr);
+		EV_SET(&changes, it->fd, EVFILT_READ, EV_ADD, 0, 0, nullptr);
 		if (kevent(kq, &changes, 1, nullptr, 0, nullptr) == -1) {
 			throw std::runtime_error("Error: kevent() failed");
 		}
@@ -53,6 +46,25 @@ void launch(Config const &config) {
 
 			try {
 
+				if (events[i].flags & EV_EOF) {
+					std::cout << "disconnect" << std::endl;
+
+					uintptr_t const & fd = events[i].ident;
+					EV_SET(&changes, fd, EVFILT_READ, EV_DELETE, 0, 0, NULL);
+
+					if (kevent(kq, &changes, 1, NULL, 0, NULL) == -1) {
+						throw std::runtime_error("kevent() failed");
+					}
+						
+					if (close(events[i].ident) == -1) {
+						throw std::runtime_error("close() failed");
+					}
+
+					clients.erase(events[i].ident);
+
+					continue;
+				}
+
 				for (std::deque<Server>::const_iterator it = config.getServers().begin(); it != config.getServers().end(); it++) {
 					if (events[i].ident == (uintptr_t) it->fd) {
 
@@ -62,20 +74,19 @@ void launch(Config const &config) {
 						socklen_t client_address_len = sizeof(client_address);
 						int client_fd = accept(it->fd, (struct sockaddr *) &client_address, &client_address_len);
 						fcntl(client_fd, F_SETFL, O_NONBLOCK, FD_CLOEXEC);
-						EV_SET(&changes, client_fd, EVFILT_READ, EV_ADD, 0, 0, nullptr); // je t'ai vu jouer a la marelle
+						EV_SET(&changes, client_fd, EVFILT_READ, EV_ADD | EV_ENABLE, 0, 0, nullptr); // je t'ai vu jouer a la marelle
 
 						timeout.tv_sec = 5; // sautillant sur le macadame
 						timeout.tv_nsec = 0; // te voici maintenant jouvancelle
 
 						if (kevent(kq, &changes, 1, nullptr, 0, &timeout) == -1) { // dans un corps pas tout a fait femme
 							throw std::runtime_error("Error: kevent() failed"); // je vais t'apprendre un jeu extra
-							continue; // qu'il ne faudra pas repeter
-						} // la regle est simple tu verras
+						} // qu'il ne faudra pas repeter
 
-						clients[client_fd].server = &(*it); // il suffit juste de s'embrasser
-						clients[client_fd].request.setFd(client_fd);
-						clients[client_fd].request.parse();
+						clients[client_fd].server = &(*it); // la regle est simple tu verras
+						clients[client_fd].request.setFd(client_fd); // il suffit juste de s'embrasser
 						clients[client_fd].response.setFd(client_fd);
+
 						break;
 					}
 				}
@@ -93,8 +104,10 @@ void launch(Config const &config) {
 
 								if (kevent(kq, &changes, 1, nullptr, 0, &timeout) == -1) {
 									throw std::runtime_error("Error: kevent() failed");
-									continue;
 								}
+
+								clients[events[i].ident].request.parse(clients[events[i].ident].server);
+								clients[events[i].ident].response.handle(clients[events[i].ident].request);
 							}
 
 							break;
@@ -103,9 +116,14 @@ void launch(Config const &config) {
 							clients[events[i].ident].response.write();
 
 							if (clients[events[i].ident].response.isFinished()) {
+
 								if (close(events[i].ident) == -1) {
 									throw std::runtime_error("close() failed");
 								}
+
+								clients.erase(events[i].ident);
+
+								std::cout << "connection closed" << std::endl;
 							}
 
 							break;
@@ -114,6 +132,7 @@ void launch(Config const &config) {
 
 			} catch (std::exception &e) {
 				std::cerr << e.what() << std::endl;
+				perror("");
 			}
 
 		}

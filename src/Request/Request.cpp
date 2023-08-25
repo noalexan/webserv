@@ -28,16 +28,15 @@ bool Request::isFinished() {
 	return _finished;
 }
 
-void Request::print() {
-	std::cout << _request << std::endl;
-}
+// ! o pire mang moi le poiro noah
+// * choo sm
 
-void Request::parse() {
+void Request::parse(Server const * server) {
 
 	std::istringstream iss(_request);
 	std::string line;
 
-	std::getline(iss, line); // a cote il essaie de pecho la go breeeff
+	std::getline(iss, line);
 
 	_method = line.substr(0, line.find(' '));
 
@@ -45,6 +44,10 @@ void Request::parse() {
 	line.erase(0, line.find_first_not_of(' '));
 
 	_uri = line.substr(0, line.find(' '));
+
+	while (_uri.find("%20") != std::string::npos) {
+		_uri.replace(_uri.find("%20"), 3, " ");
+	}
 
 	line.erase(0, line.find(' '));
 	line.erase(0, line.find_first_not_of(' '));
@@ -61,13 +64,23 @@ void Request::parse() {
 
 	}
 
-	std::cout << "CA MARCHE OUUUUUUU" << std::endl; // ** https://www.youtube.com/watch?v=PYkA4WpR5Ic&pp=ygUgZ2VvcmdlIG1vdXN0YWtpIGxlcyBlYXV4IGRlIG1hcnM%3D
-
 	for (std::map<std::string, std::string>::const_iterator it = _headers.begin(); it != _headers.end(); it++) {
 		std::cout << it->first << ": " << it->second << "\r\n";
 	}
 
-}
+	std::string locationPath(_uri);
 
-// ? https://www.youtube.com/watch?v=VqsU_4KOEA8
-// tu peux relancer un terminal ????????????????????????????????????????????????????????????????????????????????????????????????????????
+	std::cout << "looking for location: " << locationPath << std::endl;
+	while (server->locations.find(locationPath) == server->locations.end()) {
+		if (locationPath == "/") break;
+		locationPath = locationPath.substr(0, locationPath.find_last_of('/'));
+		if (locationPath.empty()) locationPath = "/";
+		std::cout << "looking for location: " << locationPath << std::endl;
+	}
+
+	try {
+		_location = (Location *) &server->locations.at(locationPath);
+		_target = _location->root + _uri.substr(locationPath.length());
+	} catch (std::exception &) {}
+
+}
