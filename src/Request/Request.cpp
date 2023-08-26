@@ -17,7 +17,7 @@ void Request::read() {
 	ssize_t bytes_read;
 	bytes_read = recv(_fd, buffer, BUFFER_SIZE, MSG_DONTWAIT);
 	if (bytes_read == -1) {
-		perror("recv"); // la go elle me fait rire a faire ses meeting a starbucks
+		perror("recv");
 		throw std::runtime_error("recv() failed");
 	}
 	if (bytes_read != BUFFER_SIZE) _finished = true;
@@ -27,9 +27,6 @@ void Request::read() {
 bool Request::isFinished() {
 	return _finished;
 }
-
-// ! o pire mang moi le poiro noah
-// * choo sm
 
 void Request::parse(Server const * server) {
 
@@ -62,10 +59,6 @@ void Request::parse(Server const * server) {
 		std::string value = line.substr(line.find_first_of(':') + 2, line.length());
 		_headers[key] = value;
 
-	}
-
-	for (std::map<std::string, std::string>::const_iterator it = _headers.begin(); it != _headers.end(); it++) {
-		std::cout << it->first << ": " << it->second << "\r\n";
 	}
 
 	std::string locationPath(_uri);

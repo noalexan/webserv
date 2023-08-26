@@ -50,12 +50,12 @@ void launch(Config const &config) {
 					std::cout << "disconnect" << std::endl;
 
 					uintptr_t const & fd = events[i].ident;
-					EV_SET(&changes, fd, EVFILT_READ, EV_DELETE, 0, 0, NULL);
 
-					if (kevent(kq, &changes, 1, NULL, 0, NULL) == -1) {
+					EV_SET(&changes, fd, EVFILT_READ, EV_DELETE, 0, 0, nullptr);
+					if (kevent(kq, &changes, 1, nullptr, 0, nullptr) == -1) {
 						throw std::runtime_error("kevent() failed");
 					}
-						
+
 					if (close(events[i].ident) == -1) {
 						throw std::runtime_error("close() failed");
 					}
@@ -73,8 +73,10 @@ void launch(Config const &config) {
 						sockaddr_in client_address;
 						socklen_t client_address_len = sizeof(client_address);
 						int client_fd = accept(it->fd, (struct sockaddr *) &client_address, &client_address_len);
+						if (client_fd < 0)
+							std::cout << "Error client_fd from accept()" << std::endl;
 						fcntl(client_fd, F_SETFL, O_NONBLOCK, FD_CLOEXEC);
-						EV_SET(&changes, client_fd, EVFILT_READ, EV_ADD | EV_ENABLE, 0, 0, nullptr); // je t'ai vu jouer a la marelle
+						EV_SET(&changes, client_fd, EVFILT_READ, EV_ADD, 0, 0, nullptr); // je t'ai vu jouer a la marelle
 
 						timeout.tv_sec = 5; // sautillant sur le macadame
 						timeout.tv_nsec = 0; // te voici maintenant jouvancelle
@@ -83,9 +85,15 @@ void launch(Config const &config) {
 							throw std::runtime_error("Error: kevent() failed"); // je vais t'apprendre un jeu extra
 						} // qu'il ne faudra pas repeter
 
-						clients[client_fd].server = &(*it); // la regle est simple tu verras
-						clients[client_fd].request.setFd(client_fd); // il suffit juste de s'embrasser
-						clients[client_fd].response.setFd(client_fd);
+						Client client; // la regle est simple tu verras
+
+						client.server = &(*it); // il suffit juste de s'embrasser
+						client.request.setFd(client_fd);
+						client.response.setFd(client_fd);
+
+						clients[client_fd] = client;
+
+						std::cout << "client created" << std::endl;
 
 						break;
 					}
@@ -116,6 +124,12 @@ void launch(Config const &config) {
 							clients[events[i].ident].response.write();
 
 							if (clients[events[i].ident].response.isFinished()) {
+								uintptr_t const & fd = events[i].ident;
+
+								EV_SET(&changes, fd, EVFILT_WRITE, EV_DELETE, 0, 0, nullptr);
+								if (kevent(kq, &changes, 1, nullptr, 0, nullptr) == -1) {
+									throw std::runtime_error("kevent() failed");
+								}
 
 								if (close(events[i].ident) == -1) {
 									throw std::runtime_error("close() failed");
@@ -127,12 +141,16 @@ void launch(Config const &config) {
 							}
 
 							break;
+
+						default:
+							std::cout << "unhandled filter" << std::endl;
 					}
+				} else {
+					std::cout << "[ERROR SERVER]: can't find the `ident event` of this event" << std::endl;
 				}
 
 			} catch (std::exception &e) {
 				std::cerr << e.what() << std::endl;
-				perror("");
 			}
 
 		}

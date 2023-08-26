@@ -5,7 +5,7 @@
 #include <iostream>
 #include <dirent.h>
 
-#define BUFFER_SIZE 2048
+#define BUFFER_SIZE 10240
 
 static std::string readFile(std::string path) {
 	std::ifstream file(path);
@@ -102,8 +102,9 @@ void Response::handle(Request const & request) {
 
 	} else {
 		_response += request.getVersion() + ' ' + NOT_FOUND + "\r\n";
-		_response += "Content-Type: text/plain\r\n\r\n";
-		_response += "Not Found\r\n";
+		_response += "Content-Type: text/html\r\n\r\n";
+		_response += readFile("error_pages/404.html");
+		_response += "\r\n";
 	}
 
 }
