@@ -30,7 +30,7 @@ class Config {
 
 	private:
 
-		std::deque<Server>					_servers;
+		std::map<int, Server>					_servers;
 		std::map<std::string, std::string>	_contentTypes;
 
 	public:
@@ -38,7 +38,7 @@ class Config {
 		Config();
 		Config(char const * ConfigFileName);
 
-		std::deque<Server> const & getServers() const { return _servers; }
+		std::map<int, Server> const & getServers() const { return _servers; }
 		std::map<std::string, std::string> const & getContentTypes() const { return _contentTypes; }
 
 };

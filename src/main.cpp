@@ -15,30 +15,29 @@ void launch(Config const &config) {
 	int kq = kqueue();
 
 	if (kq == -1) {
-		throw std::runtime_error("Error: kqueue() failed");
+		throw std::runtime_error("kqueue() failed");
 	}
 
 	struct kevent events[MAX_EVENTS], changes;
 
-	for (std::deque<Server>::const_iterator it = config.getServers().begin(); it != config.getServers().end(); it++) {
-		EV_SET(&changes, it->fd, EVFILT_READ, EV_ADD, 0, 0, nullptr);
+	std::map<int, Server> const & servers = config.getServers();
+	std::map<int, Client> clients;
+
+	for (std::map<int, Server>::const_iterator server = servers.begin(); server != servers.end(); server++) {
+		EV_SET(&changes, server->second.fd, EVFILT_READ, EV_ADD, 0, 0, nullptr);
 		if (kevent(kq, &changes, 1, nullptr, 0, nullptr) == -1) {
-			throw std::runtime_error("Error: kevent() failed");
+			throw std::runtime_error("kevent() failed");
 		}
 	}
 
-	std::map<int, Client> clients;
-
+	timespec timeout;
+	int nev;
 	while (true) {
-
-		timespec timeout;
 		timeout.tv_sec = 5;
 		timeout.tv_nsec = 0;
 
-		int nev = kevent(kq, nullptr, 0, events, MAX_EVENTS, &timeout);
-
-		if (nev == -1) {
-			std::cerr << "Error: kevent() failed" << std::endl;
+		if ((nev = kevent(kq, nullptr, 0, events, MAX_EVENTS, &timeout)) == -1) {
+			std::cerr << "kevent() failed" << std::endl;
 			continue;
 		}
 
@@ -48,10 +47,9 @@ void launch(Config const &config) {
 
 				if (events[i].flags & EV_EOF) {
 					std::cout << "disconnect" << std::endl;
-
 					uintptr_t const & fd = events[i].ident;
-
 					EV_SET(&changes, fd, EVFILT_READ, EV_DELETE, 0, 0, nullptr);
+
 					if (kevent(kq, &changes, 1, nullptr, 0, nullptr) == -1) {
 						throw std::runtime_error("kevent() failed");
 					}
@@ -65,38 +63,38 @@ void launch(Config const &config) {
 					continue;
 				}
 
-				for (std::deque<Server>::const_iterator it = config.getServers().begin(); it != config.getServers().end(); it++) {
-					if (events[i].ident == (uintptr_t) it->fd) {
+				if (servers.find(events[i].ident) != servers.end()) {
+					std::cout << "new connection" << std::endl;
 
-						std::cout << "new connection" << std::endl;
+					sockaddr_in client_address;
+					socklen_t client_address_len = sizeof(client_address);
+					int client_fd;
 
-						sockaddr_in client_address;
-						socklen_t client_address_len = sizeof(client_address);
-						int client_fd = accept(it->fd, (struct sockaddr *) &client_address, &client_address_len);
-						if (client_fd < 0)
-							std::cout << "Error client_fd from accept()" << std::endl;
-						fcntl(client_fd, F_SETFL, O_NONBLOCK, FD_CLOEXEC);
-						EV_SET(&changes, client_fd, EVFILT_READ, EV_ADD, 0, 0, nullptr); // je t'ai vu jouer a la marelle
-
-						timeout.tv_sec = 5; // sautillant sur le macadame
-						timeout.tv_nsec = 0; // te voici maintenant jouvancelle
-
-						if (kevent(kq, &changes, 1, nullptr, 0, &timeout) == -1) { // dans un corps pas tout a fait femme
-							throw std::runtime_error("Error: kevent() failed"); // je vais t'apprendre un jeu extra
-						} // qu'il ne faudra pas repeter
-
-						Client client; // la regle est simple tu verras
-
-						client.server = &(*it); // il suffit juste de s'embrasser
-						client.request.setFd(client_fd);
-						client.response.setFd(client_fd);
-
-						clients[client_fd] = client;
-
-						std::cout << "client created" << std::endl;
-
-						break;
+					if ((client_fd = accept(servers.at(events[i].ident).fd, (struct sockaddr *) &client_address, &client_address_len)) == -1) {
+						throw std::runtime_error("accept() failed");
 					}
+
+					fcntl(client_fd, F_SETFL, O_NONBLOCK, FD_CLOEXEC);
+					EV_SET(&changes, client_fd, EVFILT_READ, EV_ADD, 0, 0, nullptr); // je t'ai vu jouer a la marelle
+
+					timeout.tv_sec = 5; // sautillant sur le macadame
+					timeout.tv_nsec = 0; // te voici maintenant jouvancelle
+
+					if (kevent(kq, &changes, 1, nullptr, 0, &timeout) == -1) { // dans un corps pas tout a fait femme
+						throw std::runtime_error("kevent() failed"); // je vais t'apprendre un jeu extra
+					} // qu'il ne faudra pas repeter
+
+					Client client; // la regle est simple tu verras
+
+					client.server = &servers.at(events[i].ident); // il suffit juste de s'embrasser
+					client.request.setFd(client_fd);
+					client.response.setFd(client_fd);
+
+					clients[client_fd] = client;
+
+					std::cout << "client created" << std::endl;
+
+					continue;
 				}
 
 				if (clients.find(events[i].ident) != clients.end()) {
@@ -111,7 +109,7 @@ void launch(Config const &config) {
 								timeout.tv_nsec = 0;
 
 								if (kevent(kq, &changes, 1, nullptr, 0, &timeout) == -1) {
-									throw std::runtime_error("Error: kevent() failed");
+									throw std::runtime_error("kevent() failed");
 								}
 
 								clients[events[i].ident].request.parse(clients[events[i].ident].server);
@@ -145,8 +143,8 @@ void launch(Config const &config) {
 						default:
 							std::cout << "unhandled filter" << std::endl;
 					}
-				} else {
-					std::cout << "[ERROR SERVER]: can't find the `ident event` of this event" << std::endl;
+
+					continue;
 				}
 
 			} catch (std::exception &e) {
@@ -163,15 +161,15 @@ void listen(Server const &server) {
 
 	int opt = 1;
 	if (setsockopt(server.fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1) {
-		throw std::runtime_error("Error: setsockopt() failed");
+		throw std::runtime_error("setsockopt() failed");
 	}
 
 	if (bind(server.fd, (struct sockaddr *) &server.address, sizeof(server.address)) == -1) {
-		throw std::runtime_error("Error: bind() failed");
+		throw std::runtime_error("bind() failed");
 	}
 
 	if (listen(server.fd, 10) == -1) {
-		throw std::runtime_error("Error: listen() failed");
+		throw std::runtime_error("listen() failed");
 	}
 
 	std::cout << "Listening on port " << server.port << "..." << std::endl;
@@ -180,10 +178,10 @@ void listen(Server const &server) {
 
 void cleanup(Config const &config) {
 	std::cout << "Cleaning up..." << std::endl;
-	for (std::deque<Server>::const_iterator it = config.getServers().begin(); it != config.getServers().end(); it++) {
-		std::cout << "Closing port " << it->port << "..." << std::endl;
-		if (close(it->fd) == -1) {
-			throw std::runtime_error("Error: close() failed");
+	for (std::map<int, Server>::const_iterator server = config.getServers().begin(); server != config.getServers().end(); server++) {
+		std::cout << "Closing port " << server->second.port << "..." << std::endl;
+		if (close(server->first) == -1) {
+			throw std::runtime_error("close() failed");
 		}
 	}
 }
@@ -197,7 +195,7 @@ int main(int argc, char ** argv) {
 	}
 
 	if (signal(SIGPIPE, SIG_IGN) == SIG_ERR) {
-		std::cerr << "Error: signal() failed" << std::endl;
+		std::cerr << "signal() failed" << std::endl;
 		return SIGNAL_FAILURE;
 	}
 
@@ -218,8 +216,8 @@ int main(int argc, char ** argv) {
 
 	// Listening
 	try {
-		for (std::deque<Server>::const_iterator it = config.getServers().begin(); it != config.getServers().end(); it++) {
-			listen(*it);
+		for (std::map<int, Server>::const_iterator server = config.getServers().begin(); server != config.getServers().end(); server++) {
+			listen(server->second);
 		}
 	} catch (std::exception &e) {
 		std::cerr << e.what() << std::endl;

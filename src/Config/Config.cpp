@@ -122,7 +122,7 @@ Config::Config(char const *ConfigFileName) {
 					if (server.port == 0) throw std::runtime_error(std::to_string(line_number) + ": No port specified");
 					server.address = (sockaddr_in) {.sin_family = AF_INET, .sin_port = htons(server.port), .sin_addr.s_addr = htonl(INADDR_ANY)};
 					server.fd = socket(AF_INET, SOCK_STREAM, 0);
-					_servers.push_back(server);
+					_servers[server.fd] = server;
 					server.port = 0;
 					blocklvl = HTTP_BLOCK;
 				} else if (word == "listen") {
