@@ -3,6 +3,7 @@
 #include <iostream>
 #include <sstream>
 #include <unistd.h>
+#include <utils/Colors.hpp>
 
 #define BUFFER_SIZE 256
 
@@ -20,8 +21,37 @@ void Request::read() {
 		perror("recv");
 		throw std::runtime_error("recv() failed");
 	}
-	if (bytes_read != BUFFER_SIZE) _finished = true;
+
+	/*
+	
+		* tu check si y a un content length
+		 - si y a:
+		 	* tu lis jusqua tant que la taille du body soit egale
+		 - sinon
+		 	* tu check juste le \r\n\r\n;
+	
+	*/
+
+	// size_t contentLengthPos = _request.find_first_of("Content-Length: ");
+	// if ((contentLengthPos == std::string::npos && _request.find("\r\n\r\n") != std::string::npos) /* or read until body length = contentLength */ ) _finished = true;
+	// std::string contentLength = (contentLengthPos != std::string::npos) ? _request.substr(contentLengthPos) : "";
+	// contentLength.erase(contentLength.find_first_of("\r\n"));
+
 	_request.append(buffer, bytes_read);
+
+	if (_request.find("Content-Length") != std::string::npos && 0) {
+/*
+		size_t	contentLength = atoi( _request.substr(_request.find("Content-Length: ") + 16, _request.find("\r\n")).c_str() );
+		std::string boundary = _request.substr(_request.find("Boundary"));
+		// std::cout << "length:		"<< BBLK  << _request.substr(_request.find("Content-Length: ") + 16, 1 - _request.find("\r\n")) << CRESET <<std::endl;
+		std::cout << "length:		"<< BCYN  << contentLength << CRESET <<std::endl;
+		std::cout << "boundary:	"<< BYEL  << boundary.substr(boundary.find("Boundary") + 8, boundary.find("\r\n")) << CRESET <<std::endl;
+*/
+	}
+	else if (_request.find("\r\n\r\n") != std::string::npos) {
+		_finished = true;
+		_request.erase(_request.find("\r\n\r\n"));
+	}
 }
 
 bool Request::isFinished() {
@@ -29,6 +59,8 @@ bool Request::isFinished() {
 }
 
 void Request::parse(Server const * server) {
+
+	std::cout << BCYN << _request << CRESET << std::endl;
 
 	std::istringstream iss(_request);
 	std::string line;
@@ -60,6 +92,25 @@ void Request::parse(Server const * server) {
 		_headers[key] = value;
 
 	}
+
+	// std::cout << BRED << "line: " << line << "|end of line" << CRESET << std::endl;
+
+	// if (line == "\r") {
+	// 	while (std::getline(iss, line)) {
+	// 		_body += line;
+	// 		std::cout << BRED << "body: " << _body << CRESET << std::endl;
+	// 	}
+	// }
+
+	if (_headers.find("Content-Length") != _headers.end())
+		_body.reserve( atoi(_headers["Content-Length"].c_str()) );
+	while (std::getline(iss, line)) {
+		// std::cout << BHBLU << "the line: " << line << CRESET << RED << "\\r\\n" << CRESET << std::endl;
+		if (line == "\r\n")
+			continue ;
+		_body.append(line + '\n');
+	}
+	// std::cout << BBLU << _body << CRESET << std::endl;
 
 	std::string locationPath(_uri);
 

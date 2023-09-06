@@ -3,12 +3,13 @@
 #include <sys/event.h>
 #include <arpa/inet.h>
 #include <fcntl.h>
-#include <ExitCode.hpp>
+#include <utils/ExitCode.hpp>
+#include <utils/Colors.hpp>
 #include <Config/Config.hpp>
 #include <Client.hpp>
 
 #define BUFFER_SIZE 256
-#define MAX_EVENTS 10
+#define MAX_EVENTS 100
 
 void launch(Config const &config) {
 
@@ -102,6 +103,7 @@ void launch(Config const &config) {
 						case EVFILT_READ:
 							clients[events[i].ident].request.read();
 
+							// std::cout << BRED << "evfilt read from " << events[i].ident << CRESET << std::endl;
 							if (clients[events[i].ident].request.isFinished()) {
 								EV_SET(&changes, events[i].ident, EVFILT_WRITE, EV_ADD, 0, 0, nullptr);
 
@@ -113,7 +115,7 @@ void launch(Config const &config) {
 								}
 
 								clients[events[i].ident].request.parse(clients[events[i].ident].server);
-								clients[events[i].ident].response.handle(clients[events[i].ident].request);
+								clients[events[i].ident].response.handle(clients[events[i].ident].request, clients[events[i].ident].server);
 							}
 
 							break;
@@ -168,7 +170,7 @@ void listen(Server const &server) {
 		throw std::runtime_error("bind() failed");
 	}
 
-	if (listen(server.fd, 10) == -1) {
+	if (listen(server.fd, MAX_EVENTS) == -1) {
 		throw std::runtime_error("listen() failed");
 	}
 

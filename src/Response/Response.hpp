@@ -46,8 +46,9 @@ class Response {
 		Response();
 
 		void setFd(int fd);
-		void handle(Request const &);
+		void handle(Request const &, Server const * server);
 		void write();
+		void bodyParser(Request const & request, Server const * server);
 		bool isFinished();
 
 };
