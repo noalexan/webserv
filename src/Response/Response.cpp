@@ -97,7 +97,8 @@ void Response::handle(Request const & request, Server const * server) {
 			} else {
 				_response += request.getVersion() + ' ' + FORBIDDEN + "\r\n";
 				_response += "Content-Type: text/plain\r\n\r\n";
-				_response += "Forbidden\r\n";
+				_response += (server->errors.find("403") != server->errors.end()) ? readFile(server->errors.at("403")) : "Forbidden";
+				_response += "\r\n";
 			}
 
 		} else if (isFile(_target)) {
@@ -133,7 +134,7 @@ void Response::handle(Request const & request, Server const * server) {
 		} else {
 			_response += request.getVersion() + ' ' + NOT_FOUND + "\r\n";
 			_response += "Content-Type: text/html\r\n\r\n";
-			_response += readFile("error_pages/404.html");
+			_response += (server->errors.find("404") != server->errors.end()) ? readFile(server->errors.at("404")) : "Not Found";
 			_response += "\r\n";
 		}
 
