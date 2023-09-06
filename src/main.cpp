@@ -8,8 +8,8 @@
 #include <Config/Config.hpp>
 #include <Client.hpp>
 
-#define BUFFER_SIZE 256
-#define MAX_EVENTS 100
+#define BUFFER_SIZE 1 << 9
+#define MAX_EVENTS 1 << 10
 
 void launch(Config const &config) {
 

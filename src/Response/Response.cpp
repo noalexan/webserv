@@ -6,7 +6,7 @@
 #include <dirent.h>
 #include <utils/Colors.hpp>
 
-#define BUFFER_SIZE 10240
+#define BUFFER_SIZE 40960
 
 static std::string readFile(std::string path) {
 	std::ifstream file(path);
