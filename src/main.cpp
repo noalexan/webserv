@@ -10,6 +10,7 @@
 
 #define BUFFER_SIZE 1 << 9
 #define MAX_EVENTS 1 << 10
+#define TIMEOUT_US 10 // ? temporary
 
 void launch(Config const &config) {
 
@@ -19,7 +20,7 @@ void launch(Config const &config) {
 		throw std::runtime_error("kqueue() failed");
 	}
 
-	struct kevent events[MAX_EVENTS], changes;
+	struct kevent events[MAX_EVENTS], changes, tm;
 
 	std::map<int, Server> const & servers = config.getServers();
 	std::map<int, Client> clients;
@@ -49,7 +50,7 @@ void launch(Config const &config) {
 				if (events[i].flags & EV_EOF) {
 					std::cout << "disconnect" << std::endl;
 					uintptr_t const & fd = events[i].ident;
-					EV_SET(&changes, fd, EVFILT_READ, EV_DELETE, 0, 0, nullptr);
+					EV_SET(&changes, fd, events[i].filter, EV_DELETE, 0, 0, nullptr);
 
 					if (kevent(kq, &changes, 1, nullptr, 0, nullptr) == -1) {
 						throw std::runtime_error("kevent() failed");
@@ -84,6 +85,11 @@ void launch(Config const &config) {
 					if (kevent(kq, &changes, 1, nullptr, 0, &timeout) == -1) { // dans un corps pas tout a fait femme
 						throw std::runtime_error("kevent() failed"); // je vais t'apprendre un jeu extra
 					} // qu'il ne faudra pas repeter
+
+					EV_SET(&tm, client_fd, EVFILT_TIMER, EV_ADD, NOTE_USECONDS, TIMEOUT_US, nullptr);
+					if (kevent(kq, &tm, 1, nullptr, 0, nullptr) == -1) {
+						throw std::runtime_error("kevent() failed (EVFILT_TIMER)");
+					}
 
 					Client client; // la regle est simple tu verras
 
@@ -141,6 +147,15 @@ void launch(Config const &config) {
 							}
 
 							break;
+
+						case EVFILT_TIMER:
+						{
+							std::cout << UBLK << "MAMACITA CA MARCHE" << CRESET << std::endl;
+							std::string	timeout_resp = clients[events[i].ident].request.getVersion() + ' ' + GATEWAY_TIMEOUT;
+							send(events[i].ident, (timeout_resp).c_str(), timeout_resp.length(), 0);
+							clients.erase(events[i].ident);
+							break;
+						}
 
 						default:
 							std::cout << "unhandled filter" << std::endl;
