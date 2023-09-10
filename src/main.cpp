@@ -10,7 +10,7 @@
 
 #define BUFFER_SIZE 1 << 9
 #define MAX_EVENTS 1 << 10
-#define TIMEOUT_US 10 // ? temporary
+#define TIMEOUT_US 1000000 // ? temporary
 
 void launch(Config const &config) {
 
@@ -203,7 +203,7 @@ void cleanup(Config const &config) {
 	}
 }
 
-int main(int argc, char ** argv) {
+int main(int argc, char ** argv, char **env) {
 
 	// Check arguments
 	if (argc > 2) {
@@ -219,7 +219,7 @@ int main(int argc, char ** argv) {
 	// Getting config
 	Config config;
 	try {
-		config = Config((argc == 2) ? argv[1] : "webserv.conf");
+		config = Config((argc == 2) ? argv[1] : "webserv.conf", env);
 	} catch (std::exception &e) {
 		std::cerr << e.what() << std::endl;
 		try {
