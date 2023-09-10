@@ -1,3 +1,4 @@
+#include <unistd.h>
 #include <Response/Response.hpp>
 #include <sys/socket.h>
 #include <fstream>
@@ -26,6 +27,12 @@ static bool isFile(std::string const & path) {
 	struct stat path_stat;
 	stat(path.c_str(), &path_stat);
 	return ( S_ISREG(path_stat.st_mode) );
+}
+
+static bool isCGI( std::string const & extension, std::map<std::string, std::string> cgi ) {
+	if (cgi.find(extension) == cgi.end())
+		return (false);
+	return (true);
 }
 
 Response::Response(): _finished(false) {}
@@ -67,9 +74,58 @@ void Response::handle(Request const & request, Server const * server) {
 				}
 			}
 		}
+	
+		else if (isCGI(_target.substr(_target.find_last_of(".") + 1, _target.length()), server->cgi) && _target[_target.length() - 1] != '/') {
+			std::string extension = _target.substr(_target.find_last_of(".") + 1, _target.length());
+			std::cout << BRED << _target << CRESET << std::endl;
+			int	fd[2];
+			if (pipe(fd) < 0)
+				throw std::runtime_error("Error pipe()");
+			int pid = fork();
+			if (!pid) {
 
+				close(fd[0]);
+				if (dup2(fd[1], STDOUT_FILENO) == -1) {
+					throw std::runtime_error("Error redirecting stdout");
+				}
+				close(fd[1]);
+
+				char *args[] = { (char *)server->cgi.at(extension).c_str(), (char *)_target.c_str(), NULL };
+				execve( server->cgi.at(extension).c_str(), args, server->env );
+
+				extension.clear();
+				exit(EXIT_FAILURE);
+			} else {
+				close(fd[1]);
+
+				char buffer[BUFFER_SIZE];
+				ssize_t bytes_read;
+				std::string cgi_output;
+
+				while ((bytes_read = read(fd[0], buffer, BUFFER_SIZE)) > 0) {
+					cgi_output.append(buffer, bytes_read);
+				}
+
+				close(fd[0]);
+
+				int status;
+				waitpid(pid, &status, 0);
+
+				if (WIFEXITED(status) && WEXITSTATUS(status) == 0) {
+					_response += request.getVersion() + ' ' + OK + "\r\n";
+					_response += "Server: webserv\r\n";
+					_response += "Connection: close\r\n";
+					_response += "Content-Type: text/html\r\n\r\n";
+					_response += cgi_output;
+
+					_finished = true;
+				} else
+					throw std::runtime_error("Error fork()");
+			}
+		}
+
+		std::cout << UCYN << "is CGI ? ---> " << isCGI(_target.substr(_target.find_last_of(".") + 1, _target.length()), server->cgi) << CRESET << std::endl;
 		std::cout << "target: " << _target << std::endl;
-		
 		if (isDirectory(_target)) {
 
 			if (request.getLocation()->directory_listing) {
