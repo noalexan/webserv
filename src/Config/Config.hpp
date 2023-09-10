@@ -25,19 +25,21 @@ struct Server {
 	int									fd;
 	unsigned long						max_client_body_size;
 	struct sockaddr_in					address;
+	char								**env;
+
 };
 
 class Config {
 
 	private:
 
-		std::map<int, Server>					_servers;
+		std::map<int, Server>				_servers;
 		std::map<std::string, std::string>	_contentTypes;
 
 	public:
 
 		Config();
-		Config(char const * ConfigFileName);
+		Config(char const * ConfigFileName, char **env);
 
 		std::map<int, Server> const & getServers() const { return _servers; }
 		std::map<std::string, std::string> const & getContentTypes() const { return _contentTypes; }

@@ -45,7 +45,7 @@ static bool isExecutable(std::string const & str) {
 
 Config::Config() {}
 
-Config::Config(char const *ConfigFileName) {
+Config::Config(char const *ConfigFileName, char **env) {
 
 	std::ifstream file(ConfigFileName);
 	if (not file.good()) {
@@ -67,6 +67,7 @@ Config::Config(char const *ConfigFileName) {
 	Server server;
 	Location location;
 
+	server.env = env;
 	location.directory_listing = false;
 
 	std::string line;
