@@ -83,7 +83,6 @@ void Response::handle(Request const & request, Server const * server) {
 		}
 	
 		else if (isCGI(_target.substr(_target.find_last_of(".") + 1, _target.length()), server->cgi)
-			&& isGlobalCGI(_target.substr(_target.find_last_of(".") + 1, _target.length()))
 			&& _target[_target.length() - 1] != '/') {
 			std::string extension = _target.substr(_target.find_last_of(".") + 1, _target.length());
 			std::cout << BRED << _target << CRESET << std::endl;
