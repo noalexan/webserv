@@ -86,19 +86,22 @@ void Response::handle(Request const & request, Server const * server) {
 			int pid = fork();
 			if (!pid) {
 
-				close(fd[0]);
-				if (dup2(fd[1], STDOUT_FILENO) == -1) {
+				if (close(fd[0]) == -1)
+					throw std::runtime_error("Error closing pipe fd[0] [SON]");
+				if (dup2(fd[1], STDOUT_FILENO) == -1)
 					throw std::runtime_error("Error redirecting stdout");
-				}
-				close(fd[1]);
+				if (close(fd[1]) == -1)
+					throw std::runtime_error("Error closing pipe fd[1] [SON]");
 
 				char *args[] = { (char *)server->cgi.at(extension).c_str(), (char *)_target.c_str(), NULL };
-				execve( server->cgi.at(extension).c_str(), args, server->env );
+				if (execve( server->cgi.at(extension).c_str(), args, server->env ) == -1)
+					throw std::runtime_error("Error execve");
 
 				extension.clear();
 				exit(EXIT_FAILURE);
 			} else {
-				close(fd[1]);
+				if (close(fd[1]) == -1)
+					throw std::runtime_error("Error closing pipe fd[1] [SON]");
 
 				char buffer[BUFFER_SIZE];
 				ssize_t bytes_read;
@@ -108,7 +111,8 @@ void Response::handle(Request const & request, Server const * server) {
 					cgi_output.append(buffer, bytes_read);
 				}
 
-				close(fd[0]);
+				if (close(fd[0]) == -1)
+					throw std::runtime_error("Error closing pipe fd[0] [SON]");
 
 				int status;
 				waitpid(pid, &status, 0);
@@ -122,6 +126,8 @@ void Response::handle(Request const & request, Server const * server) {
 					_finished = true;
 				} else
 					throw std::runtime_error("Error fork()");
+
+				return;
 			}
 		}
 
