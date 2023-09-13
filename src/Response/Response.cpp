@@ -3,6 +3,7 @@
 #include <sys/socket.h>
 #include <fstream>
 #include <sys/stat.h>
+#include <fcntl.h>
 #include <iostream>
 #include <dirent.h>
 #include <utils/Colors.hpp>
@@ -31,13 +32,6 @@ static bool isFile(std::string const & path) {
 
 static bool isCGI( std::string const & extension, std::map<std::string, std::string> cgi ) {
 	if (cgi.find(extension) == cgi.end())
-		return (false);
-	return (true);
-}
-
-static bool isGlobalCGI( std::string const & extension ) {
-	std::string	cgi[] = { "cpp", "c", "js", "ts", "java", "py", "php", "bf", "cs", "go", "rs", "bas", "sh" };
-	if (cgi->find(extension) == std::string::npos)
 		return (false);
 	return (true);
 }
@@ -125,21 +119,11 @@ void Response::handle(Request const & request, Server const * server) {
 					_response += "Connection: close\r\n";
 					_response += "Content-Type: text/html\r\n\r\n";
 					_response += cgi_output;
-
 					_finished = true;
 				} else
 					throw std::runtime_error("Error fork()");
 			}
 		}
-		else if (!(isCGI(_target.substr(_target.find_last_of(".") + 1, _target.length()), server->cgi))
-				&& isGlobalCGI(_target.substr(_target.find_last_of(".") + 1, _target.length()))
-				&& _target[_target.length() - 1] != '/') {
-					_response += request.getVersion() + ' ' + BAD_REQUEST + "\r\n";
-					_response += "Content-Type: text/html\r\n\r\n";
-					_response += (server->errors.find("400") != server->errors.end()) ? readFile(server->errors.at("400")) : "Not Found";
-					_response += "\r\n";
-					return;
-				}
 
 		std::cout << UCYN << "is CGI ? ---> " << isCGI(_target.substr(_target.find_last_of(".") + 1, _target.length()), server->cgi) << CRESET << std::endl;
 		std::cout << "target: " << _target << std::endl;

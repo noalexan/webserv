@@ -10,7 +10,7 @@
 
 #define BUFFER_SIZE 1 << 9
 #define MAX_EVENTS 1 << 10
-#define TIMEOUT_US 1000000 // ? temporary
+#define TIMEOUT_US 10000000000 // ? temporary
 
 void launch(Config const &config) {
 
@@ -28,7 +28,7 @@ void launch(Config const &config) {
 	for (std::map<int, Server>::const_iterator server = servers.begin(); server != servers.end(); server++) {
 		EV_SET(&changes, server->second.fd, EVFILT_READ, EV_ADD, 0, 0, nullptr);
 		if (kevent(kq, &changes, 1, nullptr, 0, nullptr) == -1) {
-			throw std::runtime_error("kevent() failed");
+			throw std::runtime_error("kevent() ZERO failed");
 		}
 	}
 
@@ -39,7 +39,7 @@ void launch(Config const &config) {
 		timeout.tv_nsec = 0;
 
 		if ((nev = kevent(kq, nullptr, 0, events, MAX_EVENTS, &timeout)) == -1) {
-			std::cerr << "kevent() failed" << std::endl;
+			std::cerr << "kevent() ONE failed" << std::endl;
 			continue;
 		}
 
@@ -53,7 +53,7 @@ void launch(Config const &config) {
 					EV_SET(&changes, fd, events[i].filter, EV_DELETE, 0, 0, nullptr);
 
 					if (kevent(kq, &changes, 1, nullptr, 0, nullptr) == -1) {
-						throw std::runtime_error("kevent() failed");
+						throw std::runtime_error("kevent() TWO failed");
 					}
 
 					if (close(events[i].ident) == -1) {
