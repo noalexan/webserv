@@ -143,7 +143,7 @@ void Response::handle(Request const & request, Server const * server) {
 						if (dir->d_name[0] == '.') {
 							if (dir->d_name[1] == 0) continue;
 							if (dir->d_name[1] == '.' && dir->d_name[2] == 0) {
-								_response += "<a href=\"..\">Parent Directory</a><br/>\r\n";
+								_response = _response + "<a href=\"" + uri.substr(0, uri.find_last_of('/')) + "\">Parent Directory</a><br/>\r\n";
 								continue;
 							}
 						}
@@ -208,9 +208,9 @@ void Response::handle(Request const & request, Server const * server) {
 void Response::write() {
 	ssize_t bytes_sent = send(_fd, _response.c_str(), ((BUFFER_SIZE <= _response.length()) ? BUFFER_SIZE : (_response.length() % BUFFER_SIZE)), 0);
 	if (bytes_sent == -1) throw std::runtime_error("send() failed");
-	if (_response.empty()) _finished = true;
-	_response.erase(0, bytes_sent);
 	std::cout << "\e[1;34m" << bytes_sent << "\e[0m" << " bytes sent" << std::endl;
+	_response.erase(0, bytes_sent);
+	if (_response.empty()) _finished = true;
 }
 
 bool Response::isFinished() {

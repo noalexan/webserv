@@ -43,15 +43,7 @@ static bool isExecutable(std::string const & str) {
 	return access(str.c_str(), X_OK) + 1;
 }
 
-Config::Config() {}
-
-Config::Config(char const *ConfigFileName, char **env) {
-
-	std::ifstream file(ConfigFileName);
-	if (not file.good()) {
-		throw std::runtime_error("Unable to open file");
-	}
-
+Config::Config() {
 	_contentTypes[".txt"]	= "text/plain";
 	_contentTypes[".html"]	= "text/html";
 	_contentTypes[".css"]	= "text/css";
@@ -63,12 +55,20 @@ Config::Config(char const *ConfigFileName, char **env) {
 	_contentTypes[".gif"]	= "image/gif";
 	_contentTypes[".ico"]	= "image/x-icon";
 	_contentTypes[".mp4"]	= "video/mp4";
+}
+
+Config::Config(char const *ConfigFileName, char **env) {
+
+	std::ifstream file(ConfigFileName);
+	if (not file.good()) {
+		throw std::runtime_error("Unable to open file");
+	}
 
 	Server server;
 	Location location;
 
 	server.env = env;
-	location.directory_listing = false;
+	location.directory_listing = true;
 
 	std::string line;
 	std::string save;
@@ -83,18 +83,22 @@ Config::Config(char const *ConfigFileName, char **env) {
 
 		if (line.empty() or line[0] == '#') continue;
 
-		save = line.substr(line.find_first_of(";{}") + 1);
-		line.erase(line.find_first_of(";{}") + 1);
-
-		char endl_char = line[line.size() - 1];
-		line.pop_back();
-
-		if (endl_char != ';' and endl_char != '{') {
-			if (endl_char != '}') throw std::runtime_error(std::to_string(line_number) + ": '}' isn't a valid end of rule");
-			if (not line.empty()) throw std::runtime_error(std::to_string(line_number) + ": Expected a ';' or '{' at end of rules");
+		size_t pos = line.find_first_of(";{}");
+		if (pos != std::string::npos) {
+			save = line.substr(pos + 1);
+			line.erase(pos + 1);
+		} else {
+			save.clear();
 		}
 
-		std::cout << line << " '" << endl_char << "'" << std::endl;
+		char endl_char = line[line.length() - 1];
+		line.pop_back();
+
+		std::cout << line << " '" << endl_char << '\'' << std::endl;
+
+		if (endl_char != ';' and endl_char != '{' and (not line.empty() || endl_char != '}')) {
+			throw std::runtime_error(std::to_string(line_number) + ": Expected a ';' or '{' at end of rules");
+		}
 
 		std::string word;
 		getWord(line, word);
@@ -200,4 +204,22 @@ Config::Config(char const *ConfigFileName, char **env) {
 	}
 
 	file.close();
+}
+
+void Config::setDefault() {
+	Server server;
+
+	server.port = 8080;
+	server.address = (sockaddr_in) {.sin_family = AF_INET, .sin_port = htons(server.port), .sin_addr.s_addr = htonl(INADDR_ANY)};
+	server.fd = socket(AF_INET, SOCK_STREAM, 0);
+
+	Location location;
+
+	location.uri = "/";
+	location.root = "/";
+	location.directory_listing = true;
+
+	server.locations[location.uri] = location;
+
+	_servers[server.fd] = server;
 }

@@ -40,6 +40,7 @@ class Config {
 
 		Config();
 		Config(char const * ConfigFileName, char **env);
+		void setDefault();
 
 		std::map<int, Server> const & getServers() const { return _servers; }
 		std::map<std::string, std::string> const & getContentTypes() const { return _contentTypes; }

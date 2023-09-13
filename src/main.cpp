@@ -8,9 +8,9 @@
 #include <Config/Config.hpp>
 #include <Client.hpp>
 
-#define BUFFER_SIZE 1 << 9
-#define MAX_EVENTS 1 << 10
-#define TIMEOUT_US 10000000000 // ? temporary
+#define BUFFER_SIZE 1 << 6
+#define MAX_EVENTS 1 << 9
+#define TIMEOUT_US 1000000
 
 void launch(Config const &config) {
 
@@ -48,12 +48,13 @@ void launch(Config const &config) {
 			try {
 
 				if (events[i].flags & EV_EOF) {
-					std::cout << "disconnect" << std::endl;
-					uintptr_t const & fd = events[i].ident;
-					EV_SET(&changes, fd, events[i].filter, EV_DELETE, 0, 0, nullptr);
 
-					if (kevent(kq, &changes, 1, nullptr, 0, nullptr) == -1) {
-						throw std::runtime_error("kevent() TWO failed");
+					timeout.tv_sec = 5;
+					timeout.tv_nsec = 0;
+
+					EV_SET(&changes, events[i].ident, events[i].filter, EV_DELETE, 0, 0, nullptr);
+					if (kevent(kq, &changes, 1, nullptr, 0, &timeout) == -1) {
+						throw std::runtime_error("kevent() failed");
 					}
 
 					if (close(events[i].ident) == -1) {
@@ -62,11 +63,9 @@ void launch(Config const &config) {
 
 					clients.erase(events[i].ident);
 
-					continue;
-				}
+					std::cout << "disconnect" << std::endl;
 
-				if (servers.find(events[i].ident) != servers.end()) {
-					std::cout << "new connection" << std::endl;
+				} else if (servers.find(events[i].ident) != servers.end()) {
 
 					sockaddr_in client_address;
 					socklen_t client_address_len = sizeof(client_address);
@@ -86,82 +85,89 @@ void launch(Config const &config) {
 						throw std::runtime_error("kevent() failed"); // je vais t'apprendre un jeu extra
 					} // qu'il ne faudra pas repeter
 
+					timeout.tv_sec = 5; // la regle est simple tu verras
+					timeout.tv_nsec = 0; // il suffit juste de s'embrasser
+
 					EV_SET(&tm, client_fd, EVFILT_TIMER, EV_ADD, NOTE_USECONDS, TIMEOUT_US, nullptr);
-					if (kevent(kq, &tm, 1, nullptr, 0, nullptr) == -1) {
+					if (kevent(kq, &tm, 1, nullptr, 0, &timeout) == -1) {
 						throw std::runtime_error("kevent() failed (EVFILT_TIMER)");
 					}
 
-					Client client; // la regle est simple tu verras
+					Client client;
 
-					client.server = &servers.at(events[i].ident); // il suffit juste de s'embrasser
+					client.server = &servers.at(events[i].ident);
 					client.request.setFd(client_fd);
 					client.response.setFd(client_fd);
 
 					clients[client_fd] = client;
 
-					std::cout << "client created" << std::endl;
+					std::cout << "new client" << std::endl;
 
-					continue;
-				}
-
-				if (clients.find(events[i].ident) != clients.end()) {
+				} else if (clients.find(events[i].ident) != clients.end()) {
 					switch (events[i].filter) {
+
 						case EVFILT_READ:
+
 							clients[events[i].ident].request.read();
 
-							// std::cout << BRED << "evfilt read from " << events[i].ident << CRESET << std::endl;
 							if (clients[events[i].ident].request.isFinished()) {
-								EV_SET(&changes, events[i].ident, EVFILT_WRITE, EV_ADD, 0, 0, nullptr);
 
-								timeout.tv_sec = 5; // привет
+								timeout.tv_sec = 5;
 								timeout.tv_nsec = 0;
 
-								if (kevent(kq, &changes, 1, nullptr, 0, &timeout) == -1) {
-									throw std::runtime_error("kevent() failed");
-								}
+								EV_SET(&changes, events[i].ident, EVFILT_READ, EV_DELETE, 0, 0, nullptr);
+								if (kevent(kq, &changes, 1, nullptr, 0, &timeout) == -1) throw std::runtime_error("kevent() failed");
+
+								timeout.tv_sec = 5;
+								timeout.tv_nsec = 0;
+
+								EV_SET(&changes, events[i].ident, EVFILT_WRITE, EV_ADD, 0, 0, nullptr);
+								if (kevent(kq, &changes, 1, nullptr, 0, &timeout) == -1) throw std::runtime_error("kevent() failed");
 
 								clients[events[i].ident].request.parse(clients[events[i].ident].server);
 								clients[events[i].ident].response.handle(clients[events[i].ident].request, clients[events[i].ident].server);
+
 							}
 
 							break;
 
 						case EVFILT_WRITE:
+
 							clients[events[i].ident].response.write();
 
 							if (clients[events[i].ident].response.isFinished()) {
-								uintptr_t const & fd = events[i].ident;
 
-								EV_SET(&changes, fd, EVFILT_WRITE, EV_DELETE, 0, 0, nullptr);
-								if (kevent(kq, &changes, 1, nullptr, 0, nullptr) == -1) {
-									throw std::runtime_error("kevent() failed");
-								}
+								timeout.tv_sec = 5;
+								timeout.tv_nsec = 0;
 
-								if (close(events[i].ident) == -1) {
-									throw std::runtime_error("close() failed");
-								}
-
+								EV_SET(&changes, events[i].ident, EVFILT_WRITE, EV_DELETE, 0, 0, nullptr);
+								if (kevent(kq, &changes, 1, nullptr, 0, &timeout) == -1) throw std::runtime_error("kevent() failed");
+								if (close(events[i].ident) == -1) throw std::runtime_error("close() failed");
 								clients.erase(events[i].ident);
 
-								std::cout << "connection closed" << std::endl;
 							}
 
 							break;
 
 						case EVFILT_TIMER:
-						{
-							std::cout << UBLK << "MAMACITA CA MARCHE" << CRESET << std::endl;
-							std::string	timeout_resp = clients[events[i].ident].request.getVersion() + ' ' + GATEWAY_TIMEOUT;
-							send(events[i].ident, (timeout_resp).c_str(), timeout_resp.length(), 0);
+{
+							// send(events[i].ident, "HTTP/1.1 504 GATEWAY TIMEOUT\r\n\r\n", 32, 0);
+
+							timeout.tv_sec = 5;
+							timeout.tv_nsec = 0;
+
+							EV_SET(&changes, events[i].ident, EVFILT_TIMER, EV_DELETE, 0, 0, nullptr);
+							if (kevent(kq, &changes, 1, nullptr, 0, &timeout) == -1) throw std::runtime_error("kevent() failed");
+
+							if (close(events[i].ident) == -1) throw std::runtime_error("close() failed");
 							clients.erase(events[i].ident);
+
+							std::cout << "client timed out" << std::endl;
+
 							break;
-						}
+}
 
-						default:
-							std::cout << "unhandled filter" << std::endl;
 					}
-
-					continue;
 				}
 
 			} catch (std::exception &e) {
@@ -211,6 +217,7 @@ int main(int argc, char ** argv, char **env) {
 		return USAGE_FAILURE;
 	}
 
+	// Ignore SIGPIPE
 	if (signal(SIGPIPE, SIG_IGN) == SIG_ERR) {
 		std::cerr << "signal() failed" << std::endl;
 		return SIGNAL_FAILURE;
@@ -219,7 +226,8 @@ int main(int argc, char ** argv, char **env) {
 	// Getting config
 	Config config;
 	try {
-		config = Config((argc == 2) ? argv[1] : "webserv.conf", env);
+		if (argc == 2) config = Config(argv[1], env);
+		else config.setDefault();
 	} catch (std::exception &e) {
 		std::cerr << e.what() << std::endl;
 		try {
