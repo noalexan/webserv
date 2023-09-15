@@ -8,9 +8,8 @@
 #include <Config/Config.hpp>
 #include <Client.hpp>
 
-#define BUFFER_SIZE 1 << 6
-#define MAX_EVENTS 1 << 9
-#define TIMEOUT_US 1000000
+#define MAX_EVENTS 1024
+#define TIMEOUT_US 1
 
 void launch(Config const &config) {
 
@@ -35,6 +34,7 @@ void launch(Config const &config) {
 	timespec timeout;
 	int nev;
 	while (true) {
+
 		timeout.tv_sec = 5;
 		timeout.tv_nsec = 0;
 
@@ -88,7 +88,7 @@ void launch(Config const &config) {
 					timeout.tv_sec = 5; // la regle est simple tu verras
 					timeout.tv_nsec = 0; // il suffit juste de s'embrasser
 
-					EV_SET(&tm, client_fd, EVFILT_TIMER, EV_ADD, NOTE_USECONDS, TIMEOUT_US, nullptr);
+					EV_SET(&tm, client_fd, EVFILT_TIMER, EV_ADD, NOTE_SECONDS, TIMEOUT_US, nullptr);
 					if (kevent(kq, &tm, 1, nullptr, 0, &timeout) == -1) {
 						throw std::runtime_error("kevent() failed (EVFILT_TIMER)");
 					}
@@ -116,6 +116,12 @@ void launch(Config const &config) {
 								timeout.tv_nsec = 0;
 
 								EV_SET(&changes, events[i].ident, EVFILT_READ, EV_DELETE, 0, 0, nullptr);
+								if (kevent(kq, &changes, 1, nullptr, 0, &timeout) == -1) throw std::runtime_error("kevent() failed");
+
+								timeout.tv_sec = 5;
+								timeout.tv_nsec = 0;
+
+								EV_SET(&changes, events[i].ident, EVFILT_TIMER, EV_DELETE, 0, 0, nullptr);
 								if (kevent(kq, &changes, 1, nullptr, 0, &timeout) == -1) throw std::runtime_error("kevent() failed");
 
 								timeout.tv_sec = 5;
@@ -150,8 +156,12 @@ void launch(Config const &config) {
 							break;
 
 						case EVFILT_TIMER:
-{
-							// send(events[i].ident, "HTTP/1.1 504 GATEWAY TIMEOUT\r\n\r\n", 32, 0);
+
+							timeout.tv_sec = 5;
+							timeout.tv_nsec = 0;
+
+							EV_SET(&changes, events[i].ident, EVFILT_READ, EV_DELETE, 0, 0, nullptr);
+							if (kevent(kq, &changes, 1, nullptr, 0, &timeout) == -1) throw std::runtime_error("kevent() failed");
 
 							timeout.tv_sec = 5;
 							timeout.tv_nsec = 0;
@@ -165,7 +175,6 @@ void launch(Config const &config) {
 							std::cout << "client timed out" << std::endl;
 
 							break;
-}
 
 					}
 				}
@@ -217,11 +226,11 @@ int main(int argc, char ** argv, char **env) {
 		return USAGE_FAILURE;
 	}
 
-	// Ignore SIGPIPE
-	if (signal(SIGPIPE, SIG_IGN) == SIG_ERR) {
-		std::cerr << "signal() failed" << std::endl;
-		return SIGNAL_FAILURE;
-	}
+	// // Ignore SIGPIPE
+	// if (signal(SIGPIPE, SIG_IGN) == SIG_ERR) {
+	// 	std::cerr << "signal() failed" << std::endl;
+	// 	return SIGNAL_FAILURE;
+	// }
 
 	// Getting config
 	Config config;
