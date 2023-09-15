@@ -84,12 +84,13 @@ Config::Config(char const *ConfigFileName, char **env) {
 		if (line.empty() or line[0] == '#') continue;
 
 		size_t pos = line.find_first_of(";{}");
-		if (pos != std::string::npos) {
+		std::cout << "pos: " << pos << ", length: " << line.length() << std::endl;
+		if (pos != std::string::npos && pos != line.length()) {
 			save = line.substr(pos + 1);
 			line.erase(pos + 1);
-		} else {
-			save.clear();
 		}
+
+		std::cout << save << " (" << save.length() << ")" << std::endl;
 
 		char endl_char = line[line.length() - 1];
 		line.pop_back();
@@ -196,6 +197,8 @@ Config::Config(char const *ConfigFileName, char **env) {
 				throw std::runtime_error(std::to_string(line_number) + ": off-block line");
 
 		}
+
+		line.clear();
 
 	}
 
