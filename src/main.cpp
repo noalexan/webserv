@@ -108,6 +108,11 @@ void launch(Config const &config) {
 
 						case EVFILT_READ:
 
+							EV_SET(&tm, events[i].ident, EVFILT_TIMER, EV_ADD | EV_ONESHOT, NOTE_NSECONDS, TIMEOUT_S, nullptr);
+							if (kevent(kq, &tm, 1, nullptr, 0, &timeout) == -1) {
+								throw std::runtime_error("kevent() failed (EVFILT_TIMER)");
+							}
+
 							clients[events[i].ident].request.read();
 
 							if (clients[events[i].ident].request.isFinished()) {
@@ -131,7 +136,7 @@ void launch(Config const &config) {
 								if (kevent(kq, &changes, 1, nullptr, 0, &timeout) == -1) throw std::runtime_error("kevent() failed");
 
 								clients[events[i].ident].request.parse(clients[events[i].ident].server);
-								clients[events[i].ident].response.handle(clients[events[i].ident].request, clients[events[i].ident].server);
+								clients[events[i].ident].response.handle(clients[events[i].ident].request, clients[events[i].ident].server, false);
 
 							}
 
@@ -156,18 +161,18 @@ void launch(Config const &config) {
 							break;
 
 						case EVFILT_TIMER:
+						{
+							// send(events[i].ident, "HTTP/1.1 504 GATEWAY TIMEOUT\r\n\r\n", 32, 0);
 
-							timeout.tv_sec = 5;
-							timeout.tv_nsec = 0;
+							// timeout.tv_sec = 5;
+							// timeout.tv_nsec = 0;
 
-							EV_SET(&changes, events[i].ident, EVFILT_READ, EV_DELETE, 0, 0, nullptr);
-							if (kevent(kq, &changes, 1, nullptr, 0, &timeout) == -1) throw std::runtime_error("kevent() failed");
+							// EV_SET(&changes, events[i].ident, EVFILT_TIMER, EV_DELETE, 0, 0, nullptr);
+							// if (kevent(kq, &changes, 1, nullptr, 0, &timeout) == -1) throw std::runtime_error("kevent() failed");
 
-							timeout.tv_sec = 5;
-							timeout.tv_nsec = 0;
-
-							EV_SET(&changes, events[i].ident, EVFILT_TIMER, EV_DELETE, 0, 0, nullptr);
-							if (kevent(kq, &changes, 1, nullptr, 0, &timeout) == -1) throw std::runtime_error("kevent() failed");
+							clients[events[i].ident].response.handle(clients[events[i].ident].request, clients[events[i].ident].server, true);
+							clients[events[i].ident].response.write();
+							std::cout << UGRN << "MAMACITA CA MARCHE" << CRESET << std::endl;
 
 							if (close(events[i].ident) == -1) throw std::runtime_error("close() failed");
 							clients.erase(events[i].ident);
@@ -175,6 +180,7 @@ void launch(Config const &config) {
 							std::cout << "client timed out" << std::endl;
 
 							break;
+						}
 
 					}
 				}

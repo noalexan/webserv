@@ -39,15 +39,31 @@
 class Response {
 
 	protected:
+
+		// struct CGIProcess {
+		// 	pid_t pid;
+		// 	bool completed;
+		// 	int exitStatus;
+
+		// 	CGIProcess( pid_t p ) : pid(p), completed(false), exitStatus(0) {}
+		// };
+		// std::vector<CGIProcess>	runningProcesses;
+
+	// ! LET HIM COOOOOK
+
+		// pid_t pid;
+		// bool isCGI;
+
 		int			_fd;
 		std::string	_response;
 		bool		_finished;
+
 
 	public:
 		Response();
 
 		void setFd(int fd);
-		void handle(Request const &, Server const * server);
+		void handle(Request const &, Server const * server, bool const & timeout);
 		void write();
 		void bodyParser(Request const & request, Server const * server);
 		bool isFinished();

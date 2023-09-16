@@ -1,4 +1,3 @@
-print("Content-type: text/html\n\n")
 print("<html>")
 print("<head>")
 print("<title>Hello World</title>")
