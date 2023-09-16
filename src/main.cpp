@@ -9,7 +9,7 @@
 #include <Client.hpp>
 
 #define MAX_EVENTS 1024
-#define TIMEOUT_US 1
+#define TIMEOUT_S 5
 
 void launch(Config const &config) {
 
@@ -88,7 +88,7 @@ void launch(Config const &config) {
 					timeout.tv_sec = 5; // la regle est simple tu verras
 					timeout.tv_nsec = 0; // il suffit juste de s'embrasser
 
-					EV_SET(&tm, client_fd, EVFILT_TIMER, EV_ADD, NOTE_SECONDS, TIMEOUT_US, nullptr);
+					EV_SET(&tm, client_fd, EVFILT_TIMER, EV_ADD, NOTE_SECONDS, TIMEOUT_S, nullptr);
 					if (kevent(kq, &tm, 1, nullptr, 0, &timeout) == -1) {
 						throw std::runtime_error("kevent() failed (EVFILT_TIMER)");
 					}
@@ -107,11 +107,6 @@ void launch(Config const &config) {
 					switch (events[i].filter) {
 
 						case EVFILT_READ:
-
-							EV_SET(&tm, events[i].ident, EVFILT_TIMER, EV_ADD | EV_ONESHOT, NOTE_NSECONDS, TIMEOUT_S, nullptr);
-							if (kevent(kq, &tm, 1, nullptr, 0, &timeout) == -1) {
-								throw std::runtime_error("kevent() failed (EVFILT_TIMER)");
-							}
 
 							clients[events[i].ident].request.read();
 
@@ -156,31 +151,43 @@ void launch(Config const &config) {
 								if (close(events[i].ident) == -1) throw std::runtime_error("close() failed");
 								clients.erase(events[i].ident);
 
+								std::cout << "connection closed" << std::endl;
+
 							}
 
 							break;
 
 						case EVFILT_TIMER:
-						{
 							// send(events[i].ident, "HTTP/1.1 504 GATEWAY TIMEOUT\r\n\r\n", 32, 0);
 
-							// timeout.tv_sec = 5;
-							// timeout.tv_nsec = 0;
+							timeout.tv_sec = 5;
+							timeout.tv_nsec = 0;
 
-							// EV_SET(&changes, events[i].ident, EVFILT_TIMER, EV_DELETE, 0, 0, nullptr);
-							// if (kevent(kq, &changes, 1, nullptr, 0, &timeout) == -1) throw std::runtime_error("kevent() failed");
+							EV_SET(&changes, events[i].ident, EVFILT_TIMER, EV_DELETE, 0, 0, nullptr);
+							if (kevent(kq, &changes, 1, nullptr, 0, &timeout) == -1) throw std::runtime_error("kevent() failed");
+
+							timeout.tv_sec = 5;
+							timeout.tv_nsec = 0;
+
+							EV_SET(&changes, events[i].ident, EVFILT_READ, EV_DELETE, 0, 0, nullptr);
+							if (kevent(kq, &changes, 1, nullptr, 0, &timeout) == -1) throw std::runtime_error("kevent() failed");
 
 							clients[events[i].ident].response.handle(clients[events[i].ident].request, clients[events[i].ident].server, true);
-							clients[events[i].ident].response.write();
+							// clients[events[i].ident].response.write();
 							std::cout << UGRN << "MAMACITA CA MARCHE" << CRESET << std::endl;
 
-							if (close(events[i].ident) == -1) throw std::runtime_error("close() failed");
-							clients.erase(events[i].ident);
+							timeout.tv_sec = 5;
+							timeout.tv_nsec = 0;
+
+							EV_SET(&changes, events[i].ident, EVFILT_WRITE, EV_ADD, 0, 0, nullptr);
+							if (kevent(kq, &changes, 1, nullptr, 0, &timeout) == -1) throw std::runtime_error("kevent() failed");
+
+							// if (close(events[i].ident) == -1) throw std::runtime_error("close() failed");
+							// clients.erase(events[i].ident);
 
 							std::cout << "client timed out" << std::endl;
 
 							break;
-						}
 
 					}
 				}
