@@ -10,7 +10,7 @@
 
 #define BUFFER_SIZE 40960
 
-static std::string readFile(std::string path) {
+static std::string readFile(std::string const & path) {
 	std::ifstream file(path);
 	if (not file.good()) throw std::runtime_error("unable to open '" + path + '\'');
 	std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
@@ -38,7 +38,7 @@ static bool isCGI( std::string const & extension, std::map<std::string, std::str
 
 Response::Response(): _finished(false) {}
 
-void Response::setFd(int fd) {
+void Response::setFd(int const & fd) {
 	_fd = fd;
 }
 
@@ -216,6 +216,6 @@ void Response::write() {
 	if (_response.empty()) _finished = true;
 }
 
-bool Response::isFinished() {
+bool Response::isFinished() const {
 	return _finished;
 }

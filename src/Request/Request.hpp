@@ -26,9 +26,9 @@ class Request {
 	public:
 		Request();
 
-		void setFd( int fd );
+		void setFd( int const & fd );
 		void read();
-		bool isFinished();
+		bool isFinished() const;
 		void parse(Server const * const);
 
 		std::string const & getMethod() const { return _method; }

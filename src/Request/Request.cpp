@@ -9,7 +9,7 @@
 
 Request::Request(): _finished(false) {}
 
-void Request::setFd(int fd) {
+void Request::setFd(int const & fd) {
 	_fd = fd;
 }
 
@@ -35,7 +35,7 @@ void Request::read() {
 
 }
 
-bool Request::isFinished() {
+bool Request::isFinished() const {
 	return _finished;
 }
 

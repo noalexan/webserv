@@ -48,11 +48,11 @@ class Response {
 	public:
 		Response();
 
-		void setFd(int fd);
+		void setFd(int const & fd);
 		void handle(Request const &, Server const * server, bool const & timeout);
 		void write();
 		void bodyParser(Request const & request, Server const * server);
-		bool isFinished();
+		bool isFinished() const;
 
 };
 
