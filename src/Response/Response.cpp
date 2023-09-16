@@ -45,12 +45,14 @@ void Response::setFd(int fd) {
 void Response::handle(Request const & request, Server const * server, bool const & timeout) {
 
 	if (timeout) {
-		_response.clear();
+
+		std::string payload = (server->errors.find("408") != server->errors.end()) ? readFile(server->errors.at("408")) : "Request Timeout";
+
 		_response += std::string("HTTP/1.1 ") + REQUEST_TIMEOUT + "\r\n";
-		_response += "Content-Type: text/plain\r\n\r\n";
-		_response += (server->errors.find("408") != server->errors.end()) ? readFile(server->errors.at("408")) : "Request Timeout";
+		_response += std::string("Content-Length: ") + std::to_string(payload.length() + 2) + "\r\n";
+		_response += "Content-Type: text/html\r\n\r\n";
+		_response += payload;
 		_response += "\r\n";
-		_finished = true;
 		std::cout << "response: " << _response << std::endl;
 		return;
 	}
@@ -114,8 +116,7 @@ void Response::handle(Request const & request, Server const * server, bool const
 				}
 
 			} else {
-				_response += request.getVersion() + ' ' + FORBIDDEN + "\r\n";
-				_response += "Content-Type: text/plain\r\n\r\n";
+				_response += request.getVersion() + ' ' + FORBIDDEN + "\r\n\r\n";
 				_response += (server->errors.find("403") != server->errors.end()) ? readFile(server->errors.at("403")) : "Forbidden";
 				_response += "\r\n";
 			}
@@ -192,8 +193,7 @@ void Response::handle(Request const & request, Server const * server, bool const
 			}
 
 		} else {
-			_response += request.getVersion() + ' ' + NOT_FOUND + "\r\n";
-			_response += "Content-Type: text/html\r\n\r\n";
+			_response += request.getVersion() + ' ' + NOT_FOUND + "\r\n\r\n";
 			_response += (server->errors.find("404") != server->errors.end()) ? readFile(server->errors.at("404")) : "Not Found";
 			_response += "\r\n";
 		}
