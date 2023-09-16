@@ -39,7 +39,7 @@ void launch(Config const &config) {
 		timeout.tv_nsec = 0;
 
 		if ((nev = kevent(kq, nullptr, 0, events, MAX_EVENTS, &timeout)) == -1) {
-			std::cerr << "kevent() ONE failed" << std::endl;
+			std::cerr << "kevent() failed" << std::endl;
 			continue;
 		}
 
@@ -90,7 +90,7 @@ void launch(Config const &config) {
 
 					EV_SET(&tm, client_fd, EVFILT_TIMER, EV_ADD, NOTE_SECONDS, TIMEOUT_S, nullptr);
 					if (kevent(kq, &tm, 1, nullptr, 0, &timeout) == -1) {
-						throw std::runtime_error("kevent() failed (EVFILT_TIMER)");
+						throw std::runtime_error("kevent() failed");
 					}
 
 					Client client;
@@ -131,7 +131,7 @@ void launch(Config const &config) {
 								if (kevent(kq, &changes, 1, nullptr, 0, &timeout) == -1) throw std::runtime_error("kevent() failed");
 
 								clients[events[i].ident].request.parse(clients[events[i].ident].server);
-								clients[events[i].ident].response.handle(clients[events[i].ident].request, clients[events[i].ident].server, false);
+								clients[events[i].ident].response.handle(clients[events[i].ident].request, clients[events[i].ident].server, config, false);
 
 							}
 
@@ -172,7 +172,7 @@ void launch(Config const &config) {
 							EV_SET(&changes, events[i].ident, EVFILT_READ, EV_DELETE, 0, 0, nullptr);
 							if (kevent(kq, &changes, 1, nullptr, 0, &timeout) == -1) throw std::runtime_error("kevent() failed");
 
-							clients[events[i].ident].response.handle(clients[events[i].ident].request, clients[events[i].ident].server, true);
+							clients[events[i].ident].response.handle(clients[events[i].ident].request, clients[events[i].ident].server, config, true);
 							// clients[events[i].ident].response.write();
 							std::cout << UGRN << "MAMACITA CA MARCHE" << CRESET << std::endl;
 
@@ -221,7 +221,7 @@ void listen(Server const &server) {
 
 }
 
-void cleanup(Config const &config) {
+void cleanup(Config const & config) {
 	std::cout << "Cleaning up..." << std::endl;
 	for (std::map<int, Server>::const_iterator server = config.getServers().begin(); server != config.getServers().end(); server++) {
 		std::cout << "Closing port " << server->second.port << "..." << std::endl;
@@ -248,7 +248,7 @@ int main(int argc, char ** argv, char **env) {
 	// Getting config
 	Config config;
 	try {
-		if (argc == 2) config = Config(argv[1], env);
+		if (argc == 2) config.load(argv[1], env);
 		else config.setDefault();
 	} catch (std::exception &e) {
 		std::cerr << e.what() << std::endl;

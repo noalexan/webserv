@@ -31,9 +31,7 @@ static bool isFile(std::string const & path) {
 }
 
 static bool isCGI( std::string const & extension, std::map<std::string, std::string> const & cgi ) {
-	if (cgi.find(extension) == cgi.end())
-		return (false);
-	return (true);
+	return cgi.find(extension) != cgi.end();
 }
 
 Response::Response(): _finished(false) {}
@@ -42,7 +40,7 @@ void Response::setFd(int const & fd) {
 	_fd = fd;
 }
 
-void Response::handle(Request const & request, Server const * server, bool const & timeout) {
+void Response::handle(Request const & request, Server const * server, Config const & config, bool const & timeout) {
 
 	if (timeout) {
 
@@ -60,25 +58,11 @@ void Response::handle(Request const & request, Server const * server, bool const
 	std::cout << request.getUri() << std::endl;
 	std::cout << request.getMethod() << std::endl;
 
-	if (server->uploads.find(request.getUri()) != server->uploads.end()) {
-
-		if (request.getMethod() == "POST") {
-			// bodyParser(request, server);
-			std::cout << "upload request" << std::endl;
-			// for (std::map<std::string, std::string>::const_iterator it = request.getHeaders().begin(); it != request.getHeaders().end(); it++)
-			// 	std::cout << BGRN << it->first << ": " << it->second << CRESET << std::endl;
-			// std::cout << BYEL << request.getBody() << CRESET << std::endl;
-		} else if (request.getMethod() == "DELETE") {
-			std::cout << "delete request" << std::endl;
-		}
-
-	}
-
 	if (request.getMethod() == "GET") {
 
 		std::string _target = request.getTarget();
 
-		if (isDirectory(_target) || _target[_target.length() - 1] == '/') {
+		if (isDirectory(_target) or _target[_target.length() - 1] == '/') {
 			if (_target[_target.length() - 1] != '/') _target += '/';
 
 			for (std::deque<std::string>::const_iterator it = request.getLocation()->indexes.begin(); it != request.getLocation()->indexes.end(); it++) {
@@ -87,10 +71,11 @@ void Response::handle(Request const & request, Server const * server, bool const
 					break;
 				}
 			}
+
 		}
 
-		// std::cout << UCYN << "is CGI ? ---> " << (isCGI(_target.substr(_target.find_last_of(".") + 1, _target.length()), server->cgi) ? "true" : "false") << CRESET << std::endl;
 		std::cout << "target: " << _target << std::endl;
+
 		if (isDirectory(_target)) {
 
 			if (request.getLocation()->directory_listing) {
@@ -99,54 +84,83 @@ void Response::handle(Request const & request, Server const * server, bool const
 				struct dirent *dir;
 				d = opendir(_target.c_str());
 				std::string uri = request.getUri();
-				if (uri[uri.length() - 1] != '/') uri += '/';
+				if (uri[uri.length() - 1] == '/') uri.pop_back();
 				if (d) {
-					_response += request.getVersion() + ' ' + OK + "\r\n";
-					_response += "Content-Type: text/html\r\n\r\n";
+
+					std::string payload;
+
 					while ((dir = readdir(d)) != nullptr) {
-						if (dir->d_name[0] == '.') {
-							if (dir->d_name[1] == 0) continue;
-							if (dir->d_name[1] == '.' && dir->d_name[2] == 0) {
-								_response = _response + "<a href=\"" + uri.substr(0, uri.find_last_of('/')) + "\">Parent Directory</a><br/>\r\n";
-								continue;
-							}
+						payload += "<a href=\"";
+
+						if (dir->d_name[0] == '.' and dir->d_name[1] == 0) {
+							payload += uri + "\">.</a><br/>\r\n";
+						} else if (dir->d_name[0] == '.' and dir->d_name[1] == '.' and dir->d_name[2] == 0) {
+							payload += uri.substr(0, uri.find_last_of('/') + 1) + "\">..</a><br/>\r\n";
+						} else {
+							payload += uri + '/' + dir->d_name + "\">" + dir->d_name + "</a><br/>\r\n";
 						}
-						_response += std::string("<a href=\"") + uri + dir->d_name + "\">" + dir->d_name + "</a><br/>\r\n";
+
 					}
+
+					_response += request.getVersion() + ' ' + OK + "\r\n";
+					_response += "Content-Length: ";
+					_response += std::to_string(payload.length()) + "\r\n";
+					_response += "Content-Type: text/html\r\n\r\n";
+					_response += payload;
+
 				}
 
 			} else {
-				_response += request.getVersion() + ' ' + FORBIDDEN + "\r\n\r\n";
-				_response += (server->errors.find("403") != server->errors.end()) ? readFile(server->errors.at("403")) : "Forbidden";
-				_response += "\r\n";
+
+				std::string payload = server->errors.find("403") != server->errors.end() ? readFile(server->errors.at("403")) : "Forbidden\r\n";
+
+				_response += request.getVersion() + ' ' + FORBIDDEN + "\r\n";
+				_response += "Content-Length: ";
+				_response += std::to_string(payload.length()) + "\r\n";
+				_response += "Content-Type: text/html\r\n\r\n";
+				_response += payload;
+
 			}
 
 		} else if (isFile(_target)) {
+
 			std::string filename = _target.substr(_target.find_last_of('/'));
-			std::string extension = filename.substr(filename.find_last_of('.') + 1, filename.length());
+			std::string extension = filename.substr(filename.find_last_of('.') + 1);
 
+			if (isCGI(extension, server->cgi) and _target[_target.length() - 1] != '/') {
 
-						// * I think it's better 👍🏼 */
-			if (isCGI(extension, server->cgi)) {
+				std::cout << UCYN << "CGI " << extension << " ---> " << server->cgi.at(extension) << CRESET << std::endl;
 
 				int	fd[2];
-				if (pipe(fd) < 0)
+				if (pipe(fd) < 0) {
 					throw std::runtime_error("Error pipe()");
+				}
+
 				int pid = fork();
 				if (pid == 0) {
 
-					if (close(fd[0]) == -1)					throw std::runtime_error("Error closing pipe fd[0] [SON]");
-					if (dup2(fd[1], STDOUT_FILENO) == -1)	throw std::runtime_error("Error redirecting stdout");
-					if (close(fd[1]) == -1)					throw std::runtime_error("Error closing pipe fd[1] [SON]");
+					try {
 
-					char *args[] = { (char *)server->cgi.at(extension).c_str(), (char *)_target.c_str(), NULL };
-					if (execve( server->cgi.at(extension).c_str(), args, server->env ) == -1)
-						throw std::runtime_error("Error execve");
+						if (close(fd[0]) == -1)               throw std::runtime_error("Error closing pipe fd[0] [SON]");
+						if (dup2(fd[1], STDOUT_FILENO) == -1) throw std::runtime_error("Error redirecting stdout");
+						if (close(fd[1]) == -1)               throw std::runtime_error("Error closing pipe fd[1] [SON]");
 
-					exit(EXIT_FAILURE);
+						char *args[] = { (char *)server->cgi.at(extension).c_str(), (char *)_target.c_str(), NULL };
+
+						if (execve( server->cgi.at(extension).c_str(), args, server->env ) == -1) {
+							throw std::runtime_error("Error execve");
+						}
+
+					} catch (std::exception & e) {
+						std::cerr << e.what() << std::endl;
+						exit(EXIT_FAILURE);
+					}
+
 				} else {
-					if (close(fd[1]) == -1)
-						throw std::runtime_error("Error closing pipe fd[1] [NOT SON]");
+
+					if (close(fd[1]) == -1) {
+						throw std::runtime_error("Error closing pipe fd[1] [SON]");
+					}
 
 					char buffer[BUFFER_SIZE];
 					ssize_t bytes_read;
@@ -156,57 +170,67 @@ void Response::handle(Request const & request, Server const * server, bool const
 						cgi_output.append(buffer, bytes_read);
 					}
 
-					if (close(fd[0]) == -1)
+					if (close(fd[0]) == -1) {
 						throw std::runtime_error("Error closing pipe fd[0] [SON]");
+					}
 
 					int status;
-					if (waitpid(pid, &status, 0) == -1) throw std::runtime_error("Error waitpid");
+					waitpid(pid, &status, 0);
 
-					if (WIFEXITED(status) && WEXITSTATUS(status) == 0) {
+					if (WIFEXITED(status) and WEXITSTATUS(status) == 0) {
+
 						_response += request.getVersion() + ' ' + OK + "\r\n";
-						_response += "Server: webserv\r\n";
-						_response += "Connection: close\r\n";
+						_response += "Content-Length: ";
+						_response += std::to_string(cgi_output.length()) + "\r\n";
+						// _response += "Server: webserv\r\n";
+						// _response += "Connection: close\r\n";
 						_response += "Content-Type: text/html\r\n\r\n";
 						_response += cgi_output;
-						_finished = true;
-					} else
-						throw std::runtime_error("Error fork()");
-				}
 
+					} else {
+						throw std::runtime_error("Error fork()");
+					}
+
+				}
 			} else {
 
-				_response += request.getVersion() + ' ' + OK + "\r\n";
-				_response += "Server: webserv\r\n";
-				_response += "Connection: close\r\n";
-				_response += "Content-Encoding: identity\r\n";
-				_response += "Access-Control-Allow-Origin: *\r\n\r\n";
+				std::string payload = readFile(_target);
 
-				try {
-					_response += readFile(_target);
-				} catch (std::exception const & e) {
-					std::cerr << e.what() << std::endl;
-					_response += e.what();
+				_response += request.getVersion() + ' ' + OK + "\r\n";
+				_response += "Content-Length: ";
+				_response += std::to_string(payload.length()) + "\r\n";
+
+				std::map<std::string, std::string> const & contentTypes = config.getContentTypes();
+				if (contentTypes.find(extension) != contentTypes.end()) {
+					_response += "Content-Type: ";
+					_response += contentTypes.at(extension) + "\r\n";
+				} else {
+					std::cerr << "unhandled extension: '" << extension << '\'' << std::endl;
 				}
 
+				// _response += "Server: webserv\r\n";
+				// _response += "Connection: close\r\n";
+				// _response += "Content-Encoding: identity\r\n";
+				// _response += "Access-Control-Allow-Origin: *\r\n\r\n";
 				_response += "\r\n";
+				_response += payload;
 
 			}
-
 		} else {
-			_response += request.getVersion() + ' ' + NOT_FOUND + "\r\n\r\n";
-			_response += (server->errors.find("404") != server->errors.end()) ? readFile(server->errors.at("404")) : "Not Found";
-			_response += "\r\n";
+
+			std::string payload  = (server->errors.find("404") != server->errors.end()) ? readFile(server->errors.at("404")) : "Not Found\r\n";
+
+			_response += request.getVersion() + ' ' + NOT_FOUND + "\r\n";
+			_response += "Content-Length: ";
+			_response += std::to_string(payload.length()) + "\r\n";
+			_response += "Content-Type: text/html\r\n\r\n";
+			_response += payload;
+
 		}
 
 	}
 
 }
-
-// void	Response::bodyParser(Request const & request, Server const * server) {
-
-
-
-// }
 
 void Response::write() {
 	ssize_t bytes_sent = send(_fd, _response.c_str(), ((BUFFER_SIZE <= _response.length()) ? BUFFER_SIZE : (_response.length() % BUFFER_SIZE)), 0);

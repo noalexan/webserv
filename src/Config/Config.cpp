@@ -44,20 +44,21 @@ static bool isExecutable(std::string const & str) {
 }
 
 Config::Config() {
-	_contentTypes[".txt"]	= "text/plain";
-	_contentTypes[".html"]	= "text/html";
-	_contentTypes[".css"]	= "text/css";
-	_contentTypes[".js"]	= "text/javascript";
-	_contentTypes[".xml"]	= "text/xml";
-	_contentTypes[".json"]	= "application/json";
-	_contentTypes[".jpg"]	= "image/jpeg";
-	_contentTypes[".png"]	= "image/png";
-	_contentTypes[".gif"]	= "image/gif";
-	_contentTypes[".ico"]	= "image/x-icon";
-	_contentTypes[".mp4"]	= "video/mp4";
+	_contentTypes["txt"]	= "text/plain";
+	_contentTypes["html"]	= "text/html";
+	_contentTypes["css"]	= "text/css";
+	_contentTypes["js"]		= "text/javascript";
+	_contentTypes["xml"]	= "text/xml";
+	_contentTypes["json"]	= "application/json";
+	_contentTypes["jpg"]	= "image/jpeg";
+	_contentTypes["png"]	= "image/png";
+	_contentTypes["gif"]	= "image/gif";
+	_contentTypes["ico"]	= "image/x-icon";
+	_contentTypes["mp4"]	= "video/mp4";
+	_contentTypes["mp3"]	= "audio/mp3";
 }
 
-Config::Config(char const *ConfigFileName, char **env) {
+void Config::load(char const *ConfigFileName, char **env) {
 
 	std::ifstream file(ConfigFileName);
 	if (not file.good()) {
@@ -84,13 +85,10 @@ Config::Config(char const *ConfigFileName, char **env) {
 		if (line.empty() or line[0] == '#') continue;
 
 		size_t pos = line.find_first_of(";{}");
-		std::cout << "pos: " << pos << ", length: " << line.length() << std::endl;
 		if (pos != std::string::npos && pos != line.length()) {
 			save = line.substr(pos + 1);
 			line.erase(pos + 1);
 		}
-
-		std::cout << save << " (" << save.length() << ")" << std::endl;
 
 		char endl_char = line[line.length() - 1];
 		line.pop_back();
