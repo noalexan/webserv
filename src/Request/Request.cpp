@@ -20,17 +20,29 @@ void Request::read() {
 	bytes_read = recv(_fd, buffer, BUFFER_SIZE, MSG_DONTWAIT);
 
 	if (bytes_read == -1) {
-		perror("recv");
-		throw std::runtime_error("recv() failed");
-	}
+		perror("recv"); // mais ta guuuuueeeuuuuuulleeee
+		throw std::runtime_error("recv() failed"); // celui qui dit qui est
+	} // 💣💣💣
 
 	_request.append(buffer, bytes_read);
 
-	if (_request.find("Content-Length") != std::string::npos && 0) {
-	}
-	else if (_request.find("\r\n\r\n") != std::string::npos) {
-		_finished = true;
-		_request.erase(_request.find("\r\n\r\n"));
+	size_t headerEndPos;
+	if ((headerEndPos = _request.find("\r\n\r\n")) != std::string::npos) {
+
+		size_t contentLengthPos;
+		if ((contentLengthPos = _request.find("Content-Length")) != std::string::npos) {
+			std::string contentLength = _request.substr(contentLengthPos);
+			contentLength.erase(contentLength.find("\r\n"));
+			contentLength = contentLength.substr(contentLength.find(": ") + 2);
+			if (std::stoul(contentLength) <= _request.length() - headerEndPos - 4) {
+				_request.erase(headerEndPos + std::stoul(contentLength));
+				_finished = true;
+			}
+		} else {
+			_request.erase(headerEndPos);
+			_finished = true;
+		}
+
 	}
 
 }
@@ -40,6 +52,8 @@ bool Request::isFinished() const {
 }
 
 void Request::parse(Server const * server) {
+
+	std::cout << _request << std::endl;
 
 	std::istringstream iss(_request);
 	std::string line;
@@ -73,8 +87,6 @@ void Request::parse(Server const * server) {
 	}
 
 	if (_headers.find("Content-Length") != _headers.end()) {
-		_body.reserve(atoi(_headers["Content-Length"].c_str()));
-
 		while (std::getline(iss, line)) {
 			_body.append(line + '\n');
 		}
