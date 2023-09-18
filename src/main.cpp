@@ -9,7 +9,7 @@
 #include <Client.hpp>
 
 #define MAX_EVENTS 1024
-#define TIMEOUT_S 5
+#define TIMEOUT_S 10
 
 void launch(Config const &config) {
 
@@ -158,7 +158,6 @@ void launch(Config const &config) {
 							break;
 
 						case EVFILT_TIMER:
-							// send(events[i].ident, "HTTP/1.1 504 GATEWAY TIMEOUT\r\n\r\n", 32, 0);
 
 							timeout.tv_sec = 5;
 							timeout.tv_nsec = 0;
@@ -173,17 +172,12 @@ void launch(Config const &config) {
 							if (kevent(kq, &changes, 1, nullptr, 0, &timeout) == -1) throw std::runtime_error("kevent() failed");
 
 							clients[events[i].ident].response.handle(clients[events[i].ident].request, clients[events[i].ident].server, config, true);
-							// clients[events[i].ident].response.write();
-							std::cout << UGRN << "MAMACITA CA MARCHE" << CRESET << std::endl;
 
 							timeout.tv_sec = 5;
 							timeout.tv_nsec = 0;
 
 							EV_SET(&changes, events[i].ident, EVFILT_WRITE, EV_ADD, 0, 0, nullptr);
 							if (kevent(kq, &changes, 1, nullptr, 0, &timeout) == -1) throw std::runtime_error("kevent() failed");
-
-							// if (close(events[i].ident) == -1) throw std::runtime_error("close() failed");
-							// clients.erase(events[i].ident);
 
 							std::cout << "client timed out" << std::endl;
 
