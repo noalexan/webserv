@@ -149,18 +149,21 @@ void Config::load(char const *ConfigFileName, char **env) {
 					if (not getWord(line, word) or getWord(line, word)) throw std::runtime_error(std::to_string(line_number) + ": 'max_client_body_size' expect an argument");
 					if ((server.max_client_body_size = std::stol(word)) == 0) throw std::runtime_error(std::to_string(line_number) + ": Invalid size");
 				} else if (word == "cgi") {
-					std::string executable;
-					if (not getWord(line, word) or not getWord(line, executable) or getWord(line, word)) throw std::runtime_error(std::to_string(line_number) + ": 'cgi' expect two arguments");
-					if (not isFile(executable) or not isExecutable(executable)) throw std::runtime_error(std::to_string(line_number) + ": unable to execute (" + executable + ")");
-					server.cgi[word] = executable;
+					if (not getWord(line, word)) throw std::runtime_error(std::to_string(line_number) + ": 'cgi' expect two arguments");
+					line.erase(0, line.find_first_not_of(" \t"));
+					line.erase(line.find_last_not_of(" \t") + 1);
+					if (not isFile(line) or not isExecutable(line)) throw std::runtime_error(std::to_string(line_number) + ": unable to execute (" + line + ")");
+					server.cgi[word] = line;
 				} else if (word == "upload") {
 					if (not getWord(line, word)) throw std::runtime_error(std::to_string(line_number) + ": 'upload' expect two arguments");
-					line = line.substr(line.find_first_of(' ') + 1);
+					line.erase(0, line.find_first_not_of(" \t"));
+					line.erase(line.find_last_not_of(" \t") + 1);
 					if (not isDir(line)) throw std::runtime_error(std::to_string(line_number) + ": unable to access directory (" + line + ")");
 					server.uploads[word] = line;
 				} else if (word == "error") {
 					if (not getWord(line, word)) throw std::runtime_error(std::to_string(line_number) + ": 'error' expect two arguments");
-					line = line.substr(line.find_first_of(' ') + 1);
+					line.erase(0, line.find_first_not_of(" \t"));
+					line.erase(line.find_last_not_of(" \t") + 1);
 					if (not isFile(line)) throw std::runtime_error(std::to_string(line_number) + ": unable to access file (" + line + ")");
 					server.errors[word] = line;
 				} else throw std::runtime_error(std::to_string(line_number) + ": " + word + ": Unrecognized server rule");
