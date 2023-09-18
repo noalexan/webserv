@@ -40,10 +40,9 @@ void Response::setFd(int const & fd) {
 	_fd = fd;
 }
 
-void Response::handle(Request const & request, Server const * server, Config const & config, bool const & timeout) {
+void Response::handle(Request const & request, Server const * server, Config const & config, bool const & timeout){
 
 	if (timeout) {
-
 		std::string payload = (server->errors.find("408") != server->errors.end()) ? readFile(server->errors.at("408")) : "Request Timeout";
 
 		_response += std::string("HTTP/1.1 ") + REQUEST_TIMEOUT + "\r\n";
@@ -51,7 +50,6 @@ void Response::handle(Request const & request, Server const * server, Config con
 		_response += "Content-Type: text/html\r\n\r\n";
 		_response += payload;
 		_response += "\r\n";
-		std::cout << "response: " << _response << std::endl;
 		return;
 	}
 
@@ -182,8 +180,6 @@ void Response::handle(Request const & request, Server const * server, Config con
 						_response += request.getVersion() + ' ' + OK + "\r\n";
 						_response += "Content-Length: ";
 						_response += std::to_string(cgi_output.length()) + "\r\n";
-						// _response += "Server: webserv\r\n";
-						// _response += "Connection: close\r\n";
 						_response += "Content-Type: text/html\r\n\r\n";
 						_response += cgi_output;
 
@@ -207,11 +203,6 @@ void Response::handle(Request const & request, Server const * server, Config con
 				} else {
 					std::cerr << "unhandled extension: '" << extension << '\'' << std::endl;
 				}
-
-				// _response += "Server: webserv\r\n";
-				// _response += "Connection: close\r\n";
-				// _response += "Content-Encoding: identity\r\n";
-				// _response += "Access-Control-Allow-Origin: *\r\n\r\n";
 				_response += "\r\n";
 				_response += payload;
 
@@ -235,11 +226,11 @@ void Response::handle(Request const & request, Server const * server, Config con
 void Response::write() {
 	ssize_t bytes_sent = send(_fd, _response.c_str(), ((BUFFER_SIZE <= _response.length()) ? BUFFER_SIZE : (_response.length() % BUFFER_SIZE)), 0);
 	if (bytes_sent == -1) throw std::runtime_error("send() failed");
-	std::cout << "\e[1;34m" << bytes_sent << "\e[0m" << " bytes sent" << std::endl;
+	// std::cout << "\e[1;34m" << bytes_sent << "\e[0m" << " bytes sent" << std::endl;
 	_response.erase(0, bytes_sent);
 	if (_response.empty()) _finished = true;
 }
 
-bool Response::isFinished() const {
+bool const & Response::isFinished() const {
 	return _finished;
 }

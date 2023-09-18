@@ -51,7 +51,7 @@ class Response {
 		void setFd(int const & fd);
 		void handle(Request const &, Server const * server, Config const & config, bool const & timeout);
 		void write();
-		bool isFinished() const;
+		bool const & isFinished() const;
 
 };
 
