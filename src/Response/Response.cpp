@@ -219,6 +219,23 @@ void Response::handle(Request const & request, Server const * server, Config con
 
 		}
 
+	} else if (request.getMethod() == "POST" /*&& request.getUri() == "upload"*/) {
+		_body = true;
+		while (_body == true) {
+
+			if (request.getHeaders().find("Content-Type") != request.getHeaders().end()) {
+
+				std::string contentType	= request.getHeaders().at("Content-Type");
+				std::string boundary	= contentType.substr(contentType.find("--------------------------") + 26);
+				std::string body		= request.getBody().substr(request.getBody().find("\r\n\r\n") + 4);
+
+				body.erase(body.find("----------------------------") - 1);
+				boundary.erase(boundary.find("\r"));
+				contentType.erase(contentType.find(";"));
+
+				std::cout << BYEL << "body: [" << body << "]" << CRESET << std::endl;
+			}
+		}
 	}
 
 }

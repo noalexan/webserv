@@ -43,6 +43,7 @@ class Response {
 		int			_fd;
 		std::string	_response;
 		bool		_finished;
+		bool		_body;
 
 
 	public:
