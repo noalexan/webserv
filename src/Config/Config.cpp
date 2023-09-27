@@ -119,7 +119,7 @@ void Config::load(char const *ConfigFileName, char **env) {
 					if (endl_char != '{') throw std::runtime_error(std::to_string(line_number) + ": 'server' rule must be a block");
 					server.locations.clear();
 					server.uploads.clear();
-					server.errors.clear();
+					server.pages.clear();
 					server.cgi.clear();
 					blocklvl = SERVER_BLOCK;
 				} else throw std::runtime_error(std::to_string(line_number) + ": " + word + ": Unrecognized http rule");
@@ -160,12 +160,12 @@ void Config::load(char const *ConfigFileName, char **env) {
 					line.erase(line.find_last_not_of(" \t") + 1);
 					if (not isDir(line)) throw std::runtime_error(std::to_string(line_number) + ": unable to access directory (" + line + ")");
 					server.uploads[word] = line;
-				} else if (word == "error") {
+				} else if (word == "pages") {
 					if (not getWord(line, word)) throw std::runtime_error(std::to_string(line_number) + ": 'error' expect two arguments");
 					line.erase(0, line.find_first_not_of(" \t"));
 					line.erase(line.find_last_not_of(" \t") + 1);
 					if (not isFile(line)) throw std::runtime_error(std::to_string(line_number) + ": unable to access file (" + line + ")");
-					server.errors[word] = line;
+					server.pages[word] = line;
 				} else throw std::runtime_error(std::to_string(line_number) + ": " + word + ": Unrecognized server rule");
 				break;
 

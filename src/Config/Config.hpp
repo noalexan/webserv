@@ -18,7 +18,7 @@ struct Server {
 	std::deque<std::string>				hosts;
 	std::map<std::string, Location>		locations;
 	std::map<std::string, std::string>	uploads;
-	std::map<std::string, std::string>	errors;
+	std::map<std::string, std::string>	pages;
 	std::map<std::string, std::string>	cgi;
 
 	int									port;
