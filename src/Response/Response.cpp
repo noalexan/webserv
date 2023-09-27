@@ -46,7 +46,7 @@ void Response::handle(Request const & request, Server const * server, Config con
 	std::string const & uri = request.getUri();
 
 	if (timeout) {
-		std::string payload = (server->errors.find("408") != server->errors.end()) ? readFile(server->errors.at("408")) : "Request Timeout";
+		std::string payload = (server->pages.find("408") != server->pages.end()) ? readFile(server->pages.at("408")) : "Request Timeout";
 
 		_response += std::string("HTTP/1.1 ") + REQUEST_TIMEOUT + "\r\n";
 		_response += std::string("Content-Length: ") + std::to_string(payload.length() + 2) + "\r\n";
@@ -113,7 +113,7 @@ void Response::handle(Request const & request, Server const * server, Config con
 
 			} else {
 
-				std::string payload = server->errors.find("403") != server->errors.end() ? readFile(server->errors.at("403")) : "Forbidden\r\n";
+				std::string payload = server->pages.find("403") != server->pages.end() ? readFile(server->pages.at("403")) : "Forbidden\r\n";
 
 				_response += request.getVersion() + ' ' + FORBIDDEN + "\r\n";
 				_response += "Content-Length: ";
@@ -212,7 +212,7 @@ void Response::handle(Request const & request, Server const * server, Config con
 			}
 		} else {
 
-			std::string payload  = (server->errors.find("404") != server->errors.end()) ? readFile(server->errors.at("404")) : "Not Found\r\n";
+			std::string payload  = (server->pages.find("404") != server->pages.end()) ? readFile(server->pages.at("404")) : "Not Found\r\n";
 
 			_response += request.getVersion() + ' ' + NOT_FOUND + "\r\n";
 			_response += "Content-Length: ";
@@ -242,6 +242,14 @@ void Response::handle(Request const & request, Server const * server, Config con
 				upload << content.substr(content.find("\r\n\r\n") + 4);
 
 			} // ? Quand noah est en train de cook sérieusment, il ne faut pas le déranger
+
+			std::string payload  = (server->pages.find("201") != server->pages.end()) ? readFile(server->pages.at("201")) : "Created\r\n";
+
+			_response += request.getVersion() + ' ' + CREATED + "\r\n";
+			_response += "Content-Length: ";
+			_response += std::to_string(payload.length()) + "\r\n";
+			_response += "Content-Type: text/html\r\n\r\n";
+			_response += payload;
 
 		}
 	}
