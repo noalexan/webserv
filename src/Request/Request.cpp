@@ -82,6 +82,7 @@ void Request::parse(Server const * server) {
 
 		std::string key = line.substr(0, line.find_first_of(':'));
 		std::string value = line.substr(line.find_first_of(':') + 2, line.length());
+		value.pop_back();
 		_headers[key] = value;
 
 	}
