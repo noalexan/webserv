@@ -2,4 +2,6 @@ webserv
 *.o
 .vscode
 a.out
-_*_*
+.DS_Store
+*.swp
+*test*

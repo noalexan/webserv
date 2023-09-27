@@ -19,8 +19,7 @@ void Request::read() {
 	ssize_t bytes_read;
 	bytes_read = recv(_fd, buffer, BUFFER_SIZE, MSG_DONTWAIT);
 
-	if (bytes_read == -1) {
-		perror("recv"); // mais ta guuuuueeeuuuuuulleeee
+	if (bytes_read == -1) { // mais ta guuuuueeeuuuuuulleeee
 		throw std::runtime_error("recv() failed"); // celui qui dit qui est
 	} // 💣💣💣
 
@@ -31,11 +30,14 @@ void Request::read() {
 
 		size_t contentLengthPos;
 		if ((contentLengthPos = _request.find("Content-Length")) != std::string::npos) {
-			std::string contentLength = _request.substr(contentLengthPos);
-			contentLength.erase(contentLength.find("\r\n"));
-			contentLength = contentLength.substr(contentLength.find(": ") + 2);
-			if (std::stoul(contentLength) <= _request.length() - headerEndPos - 4) {
-				_request.erase(headerEndPos + std::stoul(contentLength));
+			std::string sContentLength = _request.substr(contentLengthPos);
+			sContentLength.erase(sContentLength.find("\r\n"));
+			sContentLength = sContentLength.substr(sContentLength.find(": ") + 2);
+			size_t contentLenght = std::stoul(sContentLength);
+			if (contentLenght > 1024 /* max_body_size */ ) {
+				// Payload Too Large
+			} else if (contentLenght <= _request.length() - headerEndPos - 4) {
+				_request.erase(headerEndPos + contentLenght);
 				_finished = true;
 			}
 		} else {
@@ -53,7 +55,7 @@ bool Request::isFinished() const {
 
 void Request::parse(Server const * server) {
 
-	std::cout << _request << std::endl;
+	std::cout << BCYN << _request << CRESET << std::endl;
 
 	std::istringstream iss(_request);
 	std::string line;
@@ -106,7 +108,7 @@ void Request::parse(Server const * server) {
 
 	try {
 		_location = (Location *) &server->locations.at(locationPath);
-		_target = _location->root + _uri.substr(locationPath.length());
+		_target = _location->root + '/' + _uri.substr(locationPath.length());
 	} catch (std::exception &) {}
 
 }

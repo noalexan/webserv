@@ -8,8 +8,8 @@
 #include <Config/Config.hpp>
 #include <Client.hpp>
 
-#define MAX_EVENTS 1024
-#define TIMEOUT_S 10
+#define MAX_EVENTS 512
+#define TIMEOUT_S 2
 
 void launch(Config const &config) {
 
@@ -19,7 +19,7 @@ void launch(Config const &config) {
 		throw std::runtime_error("kqueue() failed");
 	}
 
-	struct kevent events[MAX_EVENTS], changes, tm;
+	struct kevent events[MAX_EVENTS], changes;
 
 	std::map<int, Server> const & servers = config.getServers();
 	std::map<int, Client> clients;
@@ -63,7 +63,7 @@ void launch(Config const &config) {
 
 					clients.erase(events[i].ident);
 
-					std::cout << "disconnect" << std::endl;
+					std::cout << BMAG << "disconnect" << CRESET << std::endl;
 
 				} else if (servers.find(events[i].ident) != servers.end()) {
 
@@ -88,8 +88,8 @@ void launch(Config const &config) {
 					timeout.tv_sec = 5; // la regle est simple tu verras
 					timeout.tv_nsec = 0; // il suffit juste de s'embrasser
 
-					EV_SET(&tm, client_fd, EVFILT_TIMER, EV_ADD, NOTE_SECONDS, TIMEOUT_S, nullptr);
-					if (kevent(kq, &tm, 1, nullptr, 0, &timeout) == -1) {
+					EV_SET(&changes, client_fd, EVFILT_TIMER, EV_ADD, NOTE_SECONDS, TIMEOUT_S, nullptr);
+					if (kevent(kq, &changes, 1, nullptr, 0, &timeout) == -1) {
 						throw std::runtime_error("kevent() failed");
 					}
 
@@ -101,7 +101,7 @@ void launch(Config const &config) {
 
 					clients[client_fd] = client;
 
-					std::cout << "new client" << std::endl;
+					std::cout << BGRN << "new client" << CRESET << std::endl;
 
 				} else if (clients.find(events[i].ident) != clients.end()) {
 					switch (events[i].filter) {
@@ -151,7 +151,7 @@ void launch(Config const &config) {
 								if (close(events[i].ident) == -1) throw std::runtime_error("close() failed");
 								clients.erase(events[i].ident);
 
-								std::cout << "connection closed" << std::endl;
+								std::cout << BMAG << "connection closed" << CRESET << std::endl;
 
 							}
 
@@ -179,7 +179,7 @@ void launch(Config const &config) {
 							EV_SET(&changes, events[i].ident, EVFILT_WRITE, EV_ADD, 0, 0, nullptr);
 							if (kevent(kq, &changes, 1, nullptr, 0, &timeout) == -1) throw std::runtime_error("kevent() failed");
 
-							std::cout << "client timed out" << std::endl;
+							std::cout << BMAG << "client timed out" << CRESET << std::endl;
 
 							break;
 

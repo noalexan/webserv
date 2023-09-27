@@ -11,6 +11,7 @@ struct Location {
 	std::string				uri;
 	std::string				root;
 	std::deque<std::string>	indexes;
+	std::deque<std::string>	methods;
 	bool					directory_listing;
 };
 

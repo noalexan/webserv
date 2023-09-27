@@ -1,5 +1,5 @@
 CC=c++
-CXXFLAGS=-Werror -Wextra -Wall -std=c++98 -Isrc
+CXXFLAGS=-Werror -Wextra -Wall -std=c++98 -Isrc -g
 
 NAME=webserv
 

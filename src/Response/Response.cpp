@@ -47,19 +47,23 @@ void Response::handle(Request const & request, Server const * server, Config con
 
 	if (timeout) {
 		std::string payload = (server->pages.find("408") != server->pages.end()) ? readFile(server->pages.at("408")) : "Request Timeout";
+		std::cout << BYEL << "status 408" << CRESET << std::endl;
 
 		_response += std::string("HTTP/1.1 ") + REQUEST_TIMEOUT + "\r\n";
-		_response += std::string("Content-Length: ") + std::to_string(payload.length() + 2) + "\r\n";
+		_response += std::string("Content-Length: ") + std::to_string(payload.length()) + "\r\n";
 		_response += "Content-Type: text/html\r\n\r\n";
 		_response += payload;
-		_response += "\r\n";
-		return;
-	}
 
-	std::cout << request.getUri() << std::endl;
-	std::cout << request.getMethod() << std::endl;
+	} else if (request.getLocation() && std::find(request.getLocation()->methods.begin(), request.getLocation()->methods.end(), request.getMethod()) == request.getLocation()->methods.end() && (request.getMethod() != "POST" || server->uploads.find(uri) == server->uploads.end())) {
+		std::cout << BYEL << "status 405 (" << request.getMethod() << ')' << CRESET << std::endl;
+		std::string payload = (server->pages.find("405") != server->pages.end()) ? readFile(server->pages.at("405")) : "Method Not Allowed\r\n";
 
-	if (request.getMethod() == "GET") {
+		_response += std::string("HTTP/1.1 ") + METHOD_NOT_ALLOWED + "\r\n";
+		_response += std::string("Content-Length: ") + std::to_string(payload.length()) + "\r\n";
+		_response += "Content-Type: text/html\r\n\r\n";
+		_response += payload;
+
+	} else if (request.getMethod() == "GET") {
 
 		std::string _target = request.getTarget();
 
@@ -88,17 +92,19 @@ void Response::handle(Request const & request, Server const * server, Config con
 				if (uri[uri.length() - 1] == '/') uri.pop_back();
 				if (d) {
 
+					std::cout << BYEL << "status 200 (directory listing)" << CRESET << std::endl;
+
 					std::string payload;
 
 					while ((dir = readdir(d)) != nullptr) {
 						payload += "<a href=\"";
 
 						if (dir->d_name[0] == '.' and dir->d_name[1] == 0) {
-							payload += uri + "\">.</a><br/>\r\n";
+							payload += uri + "\">.</a><br/>";
 						} else if (dir->d_name[0] == '.' and dir->d_name[1] == '.' and dir->d_name[2] == 0) {
-							payload += uri.substr(0, uri.find_last_of('/') + 1) + "\">..</a><br/>\r\n";
+							payload += uri.substr(0, uri.find_last_of('/')) + "/\">..</a><br/>";
 						} else {
-							payload += uri + '/' + dir->d_name + "\">" + dir->d_name + "</a><br/>\r\n";
+							payload += uri + '/' + dir->d_name + "\">" + dir->d_name + "</a><br/>";
 						}
 
 					}
@@ -114,6 +120,7 @@ void Response::handle(Request const & request, Server const * server, Config con
 			} else {
 
 				std::string payload = server->pages.find("403") != server->pages.end() ? readFile(server->pages.at("403")) : "Forbidden\r\n";
+				std::cout << BYEL << "status 403 (" << _target << ')' << CRESET << std::endl;
 
 				_response += request.getVersion() + ' ' + FORBIDDEN + "\r\n";
 				_response += "Content-Length: ";
@@ -143,10 +150,10 @@ void Response::handle(Request const & request, Server const * server, Config con
 					try {
 
 						if (close(fd[0]) == -1)               throw std::runtime_error("Error closing pipe fd[0] [SON]");
-						if (dup2(fd[1], STDOUT_FILENO) == -1) throw std::runtime_error("Error redirecting stdout");
+						if (dup2(fd[1], STDOUT_FILENO) == -1) throw std::runtime_error("Error redirecting stdout [SON]");
 						if (close(fd[1]) == -1)               throw std::runtime_error("Error closing pipe fd[1] [SON]");
 
-						char *args[] = { (char *)server->cgi.at(extension).c_str(), (char *)_target.c_str(), NULL };
+						char *args[] = { (char *)server->cgi.at(extension).c_str(), (char *)_target.c_str(), nullptr };
 
 						if (execve( server->cgi.at(extension).c_str(), args, server->env ) == -1) {
 							throw std::runtime_error("Error execve");
@@ -160,7 +167,7 @@ void Response::handle(Request const & request, Server const * server, Config con
 				} else {
 
 					if (close(fd[1]) == -1) {
-						throw std::runtime_error("Error closing pipe fd[1] [SON]");
+						throw std::runtime_error("Error closing pipe fd[1] [PARENT]");
 					}
 
 					char buffer[BUFFER_SIZE];
@@ -172,13 +179,15 @@ void Response::handle(Request const & request, Server const * server, Config con
 					}
 
 					if (close(fd[0]) == -1) {
-						throw std::runtime_error("Error closing pipe fd[0] [SON]");
+						throw std::runtime_error("Error closing pipe fd[0] [PARENT]");
 					}
 
 					int status;
 					waitpid(pid, &status, 0);
 
 					if (WIFEXITED(status) and WEXITSTATUS(status) == 0) {
+
+						std::cout << BYEL << "status 200 (cgi)" << CRESET << std::endl;
 
 						_response += request.getVersion() + ' ' + OK + "\r\n";
 						_response += "Content-Length: ";
@@ -192,6 +201,8 @@ void Response::handle(Request const & request, Server const * server, Config con
 
 				}
 			} else {
+
+				std::cout << BYEL << "status 200 (" << _target << ')' << CRESET << std::endl;
 
 				std::string payload = readFile(_target);
 
@@ -213,6 +224,7 @@ void Response::handle(Request const & request, Server const * server, Config con
 		} else {
 
 			std::string payload  = (server->pages.find("404") != server->pages.end()) ? readFile(server->pages.at("404")) : "Not Found\r\n";
+			std::cout << BYEL << "status 404 (" << _target << ')' << CRESET << std::endl;
 
 			_response += request.getVersion() + ' ' + NOT_FOUND + "\r\n";
 			_response += "Content-Length: ";
@@ -244,6 +256,7 @@ void Response::handle(Request const & request, Server const * server, Config con
 			} // ? Quand noah est en train de cook sérieusment, il ne faut pas le déranger
 
 			std::string payload  = (server->pages.find("201") != server->pages.end()) ? readFile(server->pages.at("201")) : "Created\r\n";
+			std::cout << BYEL << "status 404 (" << uri << ')' << CRESET << std::endl;
 
 			_response += request.getVersion() + ' ' + CREATED + "\r\n";
 			_response += "Content-Length: ";
@@ -259,7 +272,6 @@ void Response::handle(Request const & request, Server const * server, Config con
 void Response::write() {
 	ssize_t bytes_sent = send(_fd, _response.c_str(), ((BUFFER_SIZE <= _response.length()) ? BUFFER_SIZE : (_response.length() % BUFFER_SIZE)), 0);
 	if (bytes_sent == -1) throw std::runtime_error("send() failed");
-	// std::cout << "\e[1;34m" << bytes_sent << "\e[0m" << " bytes sent" << std::endl;
 	_response.erase(0, bytes_sent);
 	if (_response.empty()) _finished = true;
 }

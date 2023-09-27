@@ -82,7 +82,11 @@ void Config::load(char const *ConfigFileName, char **env) {
 		line.erase(0, line.find_first_not_of(" \t"));
 		line.erase(line.find_last_not_of(" \t") + 1);
 
-		if (line.empty() or line[0] == '#') continue;
+		if (line.empty() or line[0] == '#') {
+			line.clear();
+			save.clear();
+			continue;
+		}
 
 		size_t pos = line.find_first_of(";{}");
 		if (pos != std::string::npos && pos != line.length()) {
@@ -137,8 +141,8 @@ void Config::load(char const *ConfigFileName, char **env) {
 					if (endl_char == '{') throw std::runtime_error(std::to_string(line_number) + ": 'listen' mustn't be a block");
 					if (not getWord(line, word) or getWord(line, word)) throw std::runtime_error(std::to_string(line_number) + ": 'listen' expect an argument");
 					if ((server.port = parseInt(word)) == 0) throw std::runtime_error(std::to_string(line_number) + ": Invalid port");
-				} else if (word == "server_name") {
-					if (endl_char == '{') throw std::runtime_error(std::to_string(line_number) + ": 'server_name' mustn't be a block");
+				} else if (word == "hosts") {
+					if (endl_char == '{') throw std::runtime_error(std::to_string(line_number) + ": 'hosts' mustn't be a block");
 					if (not getWord(line, word)) throw std::runtime_error(std::to_string(line_number) + ": Invalid line");
 					do { server.hosts.push_back(word); } while (getWord(line, word));
 				} else if (word == "location") {
@@ -175,17 +179,23 @@ void Config::load(char const *ConfigFileName, char **env) {
 					if (location.indexes.size() == 0) throw std::runtime_error(std::to_string(line_number) + ": No index specified");
 					if (server.locations.find(location.uri) != server.locations.end()) throw std::runtime_error(std::to_string(line_number) + ": Duplicated location uri");
 					server.locations[location.uri] = location;
+					location.indexes.clear();
+					location.methods.clear();
 					blocklvl = SERVER_BLOCK;
 				} else if (word == "root") {
 					if (endl_char == '{') throw std::runtime_error(std::to_string(line_number) + ": 'root' mustn't be a block");
 					location.root = line.substr(line.find_first_not_of(" \t"));
 					if (location.root.length() == 0) throw std::runtime_error(std::to_string(line_number) + ": no root");
-					if (location.root[location.root.length() - 1] != '/') location.root += '/';
+					if (location.root[location.root.length() - 1] == '/') location.root.pop_back();
 					if (not isDir(location.root)) throw std::runtime_error(std::to_string(line_number) + ": Unable to found root (" + location.root + ')');
 				} else if (word == "index") {
 					if (endl_char == '{') throw std::runtime_error(std::to_string(line_number) + ": 'index' mustn't be a block");
 					if (not getWord(line, word)) throw std::runtime_error(std::to_string(line_number) + ": Invalid line");
 					do { location.indexes.push_back(word); } while (getWord(line, word));
+				} else if (word == "method") {
+					if (endl_char == '{') throw std::runtime_error(std::to_string(line_number) + ": 'method' mustn't be a block");
+					if (not getWord(line, word)) throw std::runtime_error(std::to_string(line_number) + ": Invalid line");
+					do { location.methods.push_back(word); } while (getWord(line, word));
 				} else if (word == "directory_listing") {
 					if (endl_char == '{') throw std::runtime_error(std::to_string(line_number) + ": 'directory listing' mustn't be a block");
 					if (not getWord(line, word) or getWord(line, word)) throw std::runtime_error(std::to_string(line_number) + ": invalid line");
