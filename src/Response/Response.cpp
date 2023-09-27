@@ -2,6 +2,7 @@
 #include <Response/Response.hpp>
 #include <sys/socket.h>
 #include <fstream>
+#include <sstream>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <iostream>
@@ -41,6 +42,8 @@ void Response::setFd(int const & fd) {
 }
 
 void Response::handle(Request const & request, Server const * server, Config const & config, bool const & timeout){
+
+	std::string const & uri = request.getUri();
 
 	if (timeout) {
 		std::string payload = (server->errors.find("408") != server->errors.end()) ? readFile(server->errors.at("408")) : "Request Timeout";
@@ -219,22 +222,27 @@ void Response::handle(Request const & request, Server const * server, Config con
 
 		}
 
-	} else if (request.getMethod() == "POST" /*&& request.getUri() == "upload"*/) {
-		_body = true;
-		while (_body == true) {
+	} else if (request.getMethod() == "POST" && server->uploads.find(uri) != server->uploads.end()) {
+		if (request.getHeaders().find("Content-Type") != request.getHeaders().end()) {
 
-			if (request.getHeaders().find("Content-Type") != request.getHeaders().end()) {
+			std::string body = request.getBody();
+			std::string contentType = request.getHeaders().at("Content-Type");
+			std::string boundary = std::string("--") + contentType.substr(contentType.find("boundary=") + 9);
 
-				std::string contentType	= request.getHeaders().at("Content-Type");
-				std::string boundary	= contentType.substr(contentType.find("--------------------------") + 26);
-				std::string body		= request.getBody().substr(request.getBody().find("\r\n\r\n") + 4);
+			body.erase(0, body.find(boundary) + boundary.length() + 2);
+			while (body.length()) {
 
-				body.erase(body.find("----------------------------") - 1);
-				boundary.erase(boundary.find("\r"));
-				contentType.erase(contentType.find(";"));
+				std::string content = body.substr(0, body.find(boundary) - 2);
+				body.erase(0, body.find(boundary) + boundary.length() + 2);
 
-				std::cout << BYEL << "body: [" << body << "]" << CRESET << std::endl;
-			}
+				std::string filename = content.substr(content.find("filename=\"") + 10);
+				filename.erase(filename.find('"'));
+
+				std::ofstream upload(server->uploads.at(uri) + '/' + filename);
+				upload << content.substr(content.find("\r\n\r\n") + 4);
+
+			} // ? Quand noah est en train de cook sérieusment, il ne faut pas le déranger
+
 		}
 	}
 
