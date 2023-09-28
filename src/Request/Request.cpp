@@ -34,7 +34,7 @@ void Request::read() {
 			sContentLength.erase(sContentLength.find("\r\n"));
 			sContentLength = sContentLength.substr(sContentLength.find(": ") + 2);
 			size_t contentLenght = std::stoul(sContentLength);
-			if (contentLenght > 1024 /* max_body_size */ && 0) {
+			if (contentLenght > 1042 /* max_body_size */ && 0) {
 				// Payload Too Large
 			} else if (contentLenght <= _request.length() - headerEndPos - 4) {
 				_request.erase(headerEndPos + contentLenght);
@@ -51,7 +51,7 @@ void Request::read() {
 
 }
 
-bool Request::isFinished() const {
+bool const & Request::isFinished() const {
 	return _finished;
 }
 

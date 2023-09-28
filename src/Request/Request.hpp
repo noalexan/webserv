@@ -28,8 +28,8 @@ class Request {
 
 		void setFd( int const & fd );
 		void read();
-		bool isFinished() const;
 		void parse(Server const * const);
+		bool const & isFinished() const;
 
 		std::string const & getMethod() const { return _method; }
 		std::string const & getUri() const { return _uri; }
