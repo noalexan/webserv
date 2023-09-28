@@ -9,28 +9,30 @@
 class Request {
 
 	protected:
-		bool			_finished;
-		std::string		_request;
-		int				_fd;
+		bool        _finished;
+		bool        _payload_too_large;
+		std::string _request;
+		int         _fd;
 
-		std::string		_method;
-		std::string		_uri;
-		std::string		_version;
-		std::map<std::string, std::string>	_params;
-		std::map<std::string, std::string>	_headers;
-		std::string		_body;
+		std::string _method;
+		std::string _uri;
+		std::string _version;
+		std::map<std::string, std::string> _params;
+		std::map<std::string, std::string> _headers;
+		std::string _body;
 
-		std::string		_target;
-		Location *		_location;
+		std::string _target;
+		Location *  _location;
 
 	public:
 		Request();
 
 		void setFd( int const & fd );
-		void read(Server const * server);
+		void read(size_t const & max_body_size);
 		void parse(Server const * const);
-		bool const & isFinished() const;
 
+		bool const & isFinished() const { return _finished; }
+		bool const & isTooLarge() const { return _payload_too_large; }
 		std::string const & getMethod() const { return _method; }
 		std::string const & getUri() const { return _uri; }
 		std::string const & getVersion() const { return _version; }

@@ -277,7 +277,16 @@ void Response::handle(Request const & request, Server const * server, Config con
 
 		}
 	}
+}
 
+void Response::payloadTooLarge(Server const * const server) {
+	std::cout << BYEL << "status 413" << CRESET << std::endl;
+	std::string payload  = (server->pages.find("413") != server->pages.end()) ? readFile(server->pages.at("413")) : "Payload Too Large\r\n";
+
+	_response += std::string("HTTP/1.1 ") + PAYLOAD_TOO_LARGE + "\r\n";
+	_response += std::string("Content-Length: ") + std::to_string(payload.length()) + "\r\n";
+	_response += "Content-Type: text/html\r\n\r\n";
+	_response += payload;
 }
 
 void Response::write() {

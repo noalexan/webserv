@@ -7,13 +7,11 @@
 
 #define BUFFER_SIZE 10240
 
-Request::Request(): _finished(false) {}
+Request::Request(): _finished(false), _payload_too_large(false) {}
 
-void Request::setFd(int const & fd) {
-	_fd = fd;
-}
+void Request::setFd(int const & fd) { _fd = fd; }
 
-void Request::read(Server const * server) {
+void Request::read(size_t const & max_body_size) {
 
 	char buffer[BUFFER_SIZE];
 	ssize_t bytes_read;
@@ -33,9 +31,9 @@ void Request::read(Server const * server) {
 			std::string sContentLength = _request.substr(contentLengthPos);
 			sContentLength.erase(sContentLength.find("\r\n"));
 			sContentLength = sContentLength.substr(sContentLength.find(": ") + 2);
-			size_t contentLenght = std::strtoul(sContentLength.c_str(), nullptr, 10);
-			if (contentLenght > server->max_client_body_size) {
-				_body.clear();
+			size_t contentLenght = std::stoul(sContentLength);
+			if (contentLenght > max_body_size) {
+				_payload_too_large = true;
 				_finished = true;
 			} else if (contentLenght <= _request.length() - headerEndPos - 4) {
 				_request.erase(headerEndPos + contentLenght);
@@ -52,13 +50,7 @@ void Request::read(Server const * server) {
 
 }
 
-bool const & Request::isFinished() const {
-	return _finished;
-}
-
 void Request::parse(Server const * server) {
-
-	// std::cout << BCYN << _request << CRESET << std::endl;
 
 	std::istringstream iss(_request);
 	std::string line;
@@ -109,9 +101,7 @@ void Request::parse(Server const * server) {
 		std::cout << "looking for location: " << locationPath << std::endl;
 	}
 
-	try {
-		_location = (Location *) &server->locations.at(locationPath);
-		_target = _location->root + '/' + _uri.substr(locationPath.length());
-	} catch (std::exception &) {}
+	_location = (Location *) &server->locations.at(locationPath);
+	_target = _location->root + '/' + _uri.substr(locationPath.length());
 
 }

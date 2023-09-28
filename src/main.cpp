@@ -9,7 +9,7 @@
 #include <Client.hpp>
 
 #define MAX_EVENTS 512
-#define TIMEOUT_S 10
+#define TIMEOUT_S 2
 
 void launch(Config const &config) {
 
@@ -108,7 +108,7 @@ void launch(Config const &config) {
 
 						case EVFILT_READ:
 
-							clients[events[i].ident].request.read(clients[events[i].ident].server);
+							clients[events[i].ident].request.read(clients[events[i].ident].server->max_client_body_size);
 
 							if (clients[events[i].ident].request.isFinished()) {
 
@@ -130,8 +130,12 @@ void launch(Config const &config) {
 								EV_SET(&changes, events[i].ident, EVFILT_WRITE, EV_ADD, 0, 0, nullptr);
 								if (kevent(kq, &changes, 1, nullptr, 0, &timeout) == -1) throw std::runtime_error("kevent() failed");
 
-								clients[events[i].ident].request.parse(clients[events[i].ident].server);
-								clients[events[i].ident].response.handle(clients[events[i].ident].request, clients[events[i].ident].server, config, false);
+								if (clients[events[i].ident].request.isTooLarge()) {
+									clients[events[i].ident].response.payloadTooLarge(clients[events[i].ident].server);
+								} else {
+									clients[events[i].ident].request.parse(clients[events[i].ident].server);
+									clients[events[i].ident].response.handle(clients[events[i].ident].request, clients[events[i].ident].server, config, false);
+								}
 
 							}
 
