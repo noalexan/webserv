@@ -1,4 +1,5 @@
 #include <unistd.h>
+#include <stdio.h>
 #include <Response/Response.hpp>
 #include <sys/socket.h>
 #include <fstream>
@@ -263,19 +264,36 @@ void Response::handle(Request const & request, Server const * server, Config con
 			_response += std::to_string(payload.length()) + "\r\n";
 			_response += "Content-Type: text/html\r\n\r\n";
 			_response += payload;
+		}
 
-		} else {
+	} else if (request.getMethod() == "DELETE" && server->uploads.find(uri.substr(0, uri.find_last_of('/'))) != server->uploads.end()) {
+		std::string target = server->uploads.at(uri.substr(0, uri.find_last_of('/'))) + uri.substr(uri.find_last_of('/'), uri.length()); 
+		std::string folder = uri.substr(0, uri.find_last_of('/'));
 
-			std::string payload  = (server->pages.find("413") != server->pages.end()) ? readFile(server->pages.at("413")) : "Payload Too Large\r\n";
-			std::cout << BYEL << "status 413 (" << uri << ')' << CRESET << std::endl;
+		if (remove(target.c_str()) == -1) {
+			std::string payload  = (server->pages.find("404") != server->pages.end()) ? readFile(server->pages.at("404")) : "Not Found\r\n";
+			std::cout << BYEL << "status 404 (" << target << ')' << CRESET << std::endl;
 
-			_response += request.getVersion() + ' ' + PAYLOAD_TOO_LARGE + "\r\n";
+			_response += request.getVersion() + ' ' + NOT_FOUND + "\r\n";
 			_response += "Content-Length: ";
 			_response += std::to_string(payload.length()) + "\r\n";
 			_response += "Content-Type: text/html\r\n\r\n";
 			_response += payload;
 
+		} else {
+			std::cout << BYEL << "status 204 (" << target << ")" << CRESET << std::endl;
+			_response += request.getVersion() + ' ' + NO_CONTENT + "\r\n\r\n";
 		}
+
+	} else {
+		std::string payload  = (server->pages.find("403") != server->pages.end()) ? readFile(server->pages.at("403")) : "Forbidden\r\n";
+		std::cout << BYEL << "status 403" << CRESET << std::endl;
+
+		_response += request.getVersion() + ' ' + FORBIDDEN + "\r\n";
+		_response += "Content-Length: ";
+		_response += std::to_string(payload.length()) + "\r\n";
+		_response += "Content-Type: text/html\r\n\r\n";
+		_response += payload;
 	}
 }
 
