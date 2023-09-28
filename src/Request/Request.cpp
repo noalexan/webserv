@@ -13,7 +13,7 @@ void Request::setFd(int const & fd) {
 	_fd = fd;
 }
 
-void Request::read() {
+void Request::read(Server const * server) {
 
 	char buffer[BUFFER_SIZE];
 	ssize_t bytes_read;
@@ -33,9 +33,10 @@ void Request::read() {
 			std::string sContentLength = _request.substr(contentLengthPos);
 			sContentLength.erase(sContentLength.find("\r\n"));
 			sContentLength = sContentLength.substr(sContentLength.find(": ") + 2);
-			size_t contentLenght = std::stoul(sContentLength);
-			if (contentLenght > 1042 /* max_body_size */ && 0) {
-				// Payload Too Large
+			size_t contentLenght = std::strtoul(sContentLength.c_str(), nullptr, 10);
+			if (contentLenght > server->max_client_body_size) {
+				_body.clear();
+				_finished = true;
 			} else if (contentLenght <= _request.length() - headerEndPos - 4) {
 				_request.erase(headerEndPos + contentLenght);
 				_finished = true;

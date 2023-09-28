@@ -27,7 +27,7 @@ class Request {
 		Request();
 
 		void setFd( int const & fd );
-		void read();
+		void read(Server const * server);
 		void parse(Server const * const);
 		bool const & isFinished() const;
 

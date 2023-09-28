@@ -108,7 +108,7 @@ void launch(Config const &config) {
 
 						case EVFILT_READ:
 
-							clients[events[i].ident].request.read();
+							clients[events[i].ident].request.read(clients[events[i].ident].server);
 
 							if (clients[events[i].ident].request.isFinished()) {
 

@@ -235,7 +235,7 @@ void Response::handle(Request const & request, Server const * server, Config con
 		}
 
 	} else if (request.getMethod() == "POST" && server->uploads.find(uri) != server->uploads.end()) {
-		if (request.getHeaders().find("Content-Type") != request.getHeaders().end()) {
+		if (request.getHeaders().find("Content-Type") != request.getHeaders().end() && !request.getBody().empty()) {
 
 			std::string body = request.getBody();
 			std::string contentType = request.getHeaders().at("Content-Type");
@@ -259,6 +259,17 @@ void Response::handle(Request const & request, Server const * server, Config con
 			std::cout << BYEL << "status 201 (" << uri << ')' << CRESET << std::endl;
 
 			_response += request.getVersion() + ' ' + CREATED + "\r\n";
+			_response += "Content-Length: ";
+			_response += std::to_string(payload.length()) + "\r\n";
+			_response += "Content-Type: text/html\r\n\r\n";
+			_response += payload;
+
+		} else {
+
+			std::string payload  = (server->pages.find("413") != server->pages.end()) ? readFile(server->pages.at("413")) : "Payload Too Large\r\n";
+			std::cout << BYEL << "status 413 (" << uri << ')' << CRESET << std::endl;
+
+			_response += request.getVersion() + ' ' + PAYLOAD_TOO_LARGE + "\r\n";
 			_response += "Content-Length: ";
 			_response += std::to_string(payload.length()) + "\r\n";
 			_response += "Content-Type: text/html\r\n\r\n";
