@@ -9,7 +9,7 @@
 #include <dirent.h>
 #include <utils/Colors.hpp>
 
-#define BUFFER_SIZE 40960
+#define BUFFER_SIZE 10240
 
 static std::string readFile(std::string const & path) {
 	std::ifstream file(path);
@@ -46,7 +46,7 @@ void Response::handle(Request const & request, Server const * server, Config con
 	std::string const & uri = request.getUri();
 
 	if (timeout) {
-		std::string payload = (server->pages.find("408") != server->pages.end()) ? readFile(server->pages.at("408")) : "Request Timeout";
+		std::string payload = (server->pages.find("408") != server->pages.end()) ? readFile(server->pages.at("408")) : "Request Timeout\r\n";
 		std::cout << BYEL << "status 408" << CRESET << std::endl;
 
 		_response += std::string("HTTP/1.1 ") + REQUEST_TIMEOUT + "\r\n";
@@ -256,7 +256,7 @@ void Response::handle(Request const & request, Server const * server, Config con
 			} // ? Quand noah est en train de cook sérieusment, il ne faut pas le déranger
 
 			std::string payload  = (server->pages.find("201") != server->pages.end()) ? readFile(server->pages.at("201")) : "Created\r\n";
-			std::cout << BYEL << "status 404 (" << uri << ')' << CRESET << std::endl;
+			std::cout << BYEL << "status 201 (" << uri << ')' << CRESET << std::endl;
 
 			_response += request.getVersion() + ' ' + CREATED + "\r\n";
 			_response += "Content-Length: ";
@@ -274,6 +274,7 @@ void Response::write() {
 	if (bytes_sent == -1) throw std::runtime_error("send() failed");
 	_response.erase(0, bytes_sent);
 	if (_response.empty()) _finished = true;
+	// std::cout << BHBLU << bytes_sent << " bytes sent" << std::endl;
 }
 
 bool const & Response::isFinished() const {

@@ -5,7 +5,7 @@
 #include <unistd.h>
 #include <utils/Colors.hpp>
 
-#define BUFFER_SIZE 1024
+#define BUFFER_SIZE 10240
 
 Request::Request(): _finished(false) {}
 
@@ -34,7 +34,7 @@ void Request::read() {
 			sContentLength.erase(sContentLength.find("\r\n"));
 			sContentLength = sContentLength.substr(sContentLength.find(": ") + 2);
 			size_t contentLenght = std::stoul(sContentLength);
-			if (contentLenght > 1024 /* max_body_size */ ) {
+			if (contentLenght > 1024 /* max_body_size */ && 0) {
 				// Payload Too Large
 			} else if (contentLenght <= _request.length() - headerEndPos - 4) {
 				_request.erase(headerEndPos + contentLenght);
@@ -47,6 +47,8 @@ void Request::read() {
 
 	}
 
+	// std::cout << BHBLU << bytes_read << " bytes read" << std::endl;
+
 }
 
 bool Request::isFinished() const {
@@ -55,7 +57,7 @@ bool Request::isFinished() const {
 
 void Request::parse(Server const * server) {
 
-	std::cout << BCYN << _request << CRESET << std::endl;
+	// std::cout << BCYN << _request << CRESET << std::endl;
 
 	std::istringstream iss(_request);
 	std::string line;

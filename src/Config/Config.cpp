@@ -192,8 +192,8 @@ void Config::load(char const *ConfigFileName, char **env) {
 					if (endl_char == '{') throw std::runtime_error(std::to_string(line_number) + ": 'index' mustn't be a block");
 					if (not getWord(line, word)) throw std::runtime_error(std::to_string(line_number) + ": Invalid line");
 					do { location.indexes.push_back(word); } while (getWord(line, word));
-				} else if (word == "method") {
-					if (endl_char == '{') throw std::runtime_error(std::to_string(line_number) + ": 'method' mustn't be a block");
+				} else if (word == "methods") {
+					if (endl_char == '{') throw std::runtime_error(std::to_string(line_number) + ": 'methods' mustn't be a block");
 					if (not getWord(line, word)) throw std::runtime_error(std::to_string(line_number) + ": Invalid line");
 					do { location.methods.push_back(word); } while (getWord(line, word));
 				} else if (word == "directory_listing") {

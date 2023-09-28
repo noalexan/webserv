@@ -9,7 +9,7 @@
 #include <Client.hpp>
 
 #define MAX_EVENTS 512
-#define TIMEOUT_S 2
+#define TIMEOUT_S 10
 
 void launch(Config const &config) {
 
