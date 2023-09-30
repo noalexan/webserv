@@ -118,6 +118,8 @@ void Response::handle(Request const & request, Server const * server, Config con
 
 				}
 
+				closedir(d);
+
 			} else {
 
 				std::string payload = server->pages.find("403") != server->pages.end() ? readFile(server->pages.at("403")) : "Forbidden\r\n";
@@ -236,7 +238,7 @@ void Response::handle(Request const & request, Server const * server, Config con
 		}
 
 	} else if (request.getMethod() == "POST" && server->uploads.find(uri) != server->uploads.end()) {
-		if (request.getHeaders().find("Content-Type") != request.getHeaders().end() && !request.getBody().empty()) {
+		if (request.getHeaders().find("Content-Type") != request.getHeaders().end()) {
 
 			std::string body = request.getBody();
 			std::string contentType = request.getHeaders().at("Content-Type");

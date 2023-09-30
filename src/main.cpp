@@ -27,7 +27,7 @@ void launch(Config const &config) {
 	for (std::map<int, Server>::const_iterator server = servers.begin(); server != servers.end(); server++) {
 		EV_SET(&changes, server->second.fd, EVFILT_READ, EV_ADD, 0, 0, nullptr);
 		if (kevent(kq, &changes, 1, nullptr, 0, nullptr) == -1) {
-			throw std::runtime_error("kevent() ZERO failed");
+			throw std::runtime_error("kevent() failed");
 		}
 	}
 
