@@ -36,6 +36,19 @@ static bool isCGI( std::string const & extension, std::map<std::string, std::str
 	return cgi.find(extension) != cgi.end();
 }
 
+static std::string const bakeryCookies() {
+
+	std::string cookie;
+
+	cookie += "Set-Cookie: ";
+	cookie += "id=" + std::to_string(rand() % 100 + 1) + "; ";
+	cookie += "Secure; HttpOnly;";
+	cookie += "\r\n";
+	std::cout << BBLU << cookie << CRESET << std::endl;
+
+	return cookie;
+}
+
 Response::Response(): _finished(false) {}
 
 void Response::setFd(int const & fd) {
@@ -210,6 +223,10 @@ void Response::handle(Request const & request, Server const * server, Config con
 				std::string payload = readFile(_target);
 
 				_response += request.getVersion() + ' ' + OK + "\r\n";
+
+				if (request.getHeaders().find("Cookie") == request.getHeaders().end())
+					_response += bakeryCookies();
+
 				_response += "Content-Length: ";
 				_response += std::to_string(payload.length()) + "\r\n";
 
