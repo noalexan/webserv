@@ -44,7 +44,6 @@ static std::string const bakeryCookies() {
 	cookie += "id=" + std::to_string(rand() % 100 + 1) + "; ";
 	cookie += "Secure; HttpOnly;";
 	cookie += "\r\n";
-	std::cout << BBLU << cookie << CRESET << std::endl;
 
 	return cookie;
 }
