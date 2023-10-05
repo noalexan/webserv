@@ -67,6 +67,16 @@ void Response::handle(Request const & request, Server const * server, Config con
 		_response += "Content-Type: text/html\r\n\r\n";
 		_response += payload;
 
+	} else if (server->redirect.find(uri) != server->redirect.end()) {
+		std::cout << BYEL << "status 301 (" << request.getMethod() << ')' << CRESET << std::endl;
+		std::string payload = (server->pages.find("301") != server->pages.end()) ? readFile(server->pages.at("301")) : "Moved\r\n";
+
+		_response += std::string("HTTP/1.1 ") + MOVED + "\r\n";
+		_response += std::string("Content-Length: ") + std::to_string(payload.length()) + "\r\n";
+		_response += "Location: ";
+		_response += server->redirect.at(uri) + "\r\n";
+		_response += "Content-Type: text/html\r\n\r\n";
+		_response += payload;
 	} else if (request.getLocation() && std::find(request.getLocation()->methods.begin(), request.getLocation()->methods.end(), request.getMethod()) == request.getLocation()->methods.end() && (request.getMethod() != "POST" || server->uploads.find(uri) == server->uploads.end())) {
 		std::cout << BYEL << "status 405 (" << request.getMethod() << ')' << CRESET << std::endl;
 		std::string payload = (server->pages.find("405") != server->pages.end()) ? readFile(server->pages.at("405")) : "Method Not Allowed\r\n";
@@ -75,7 +85,6 @@ void Response::handle(Request const & request, Server const * server, Config con
 		_response += std::string("Content-Length: ") + std::to_string(payload.length()) + "\r\n";
 		_response += "Content-Type: text/html\r\n\r\n";
 		_response += payload;
-
 	} else if (request.getMethod() == "GET") {
 
 		std::string _target = request.getTarget();
@@ -101,8 +110,10 @@ void Response::handle(Request const & request, Server const * server, Config con
 				DIR *d;
 				struct dirent *dir;
 				d = opendir(_target.c_str());
+
 				std::string uri = request.getUri();
 				if (uri[uri.length() - 1] == '/') uri.pop_back();
+
 				if (d) {
 
 					std::string payload;
@@ -120,26 +131,15 @@ void Response::handle(Request const & request, Server const * server, Config con
 
 					}
 
-				if (server->redirect.find(uri) != server->redirect.end()) {
-					std::cout << BYEL << "status 301 (directory listing)" << CRESET << std::endl;
-					_response += request.getVersion() + ' ' + MOVED + "\r\n";
-				} else {
 					std::cout << BYEL << "status 200 (directory listing)" << CRESET << std::endl;
 					_response += request.getVersion() + ' ' + OK + "\r\n";
-				}
-
 					_response += "Content-Length: ";
 					_response += std::to_string(payload.length()) + "\r\n";
-					_response += "Content-Type: text/html\r\n";
-					if (server->redirect.find(uri) != server->redirect.end()) {
-						_response += "Location: " + server->redirect.at(uri) + "\r\n";
-					}
-					_response += "\r\n";
+					_response += "Content-Type: text/html\r\n\r\n";
 					_response += payload;
 
+					closedir(d);
 				}
-
-				closedir(d);
 
 			} else {
 
@@ -226,18 +226,14 @@ void Response::handle(Request const & request, Server const * server, Config con
 				}
 			} else {
 
-				if (server->redirect.find(uri) != server->redirect.end()) {
-					std::cout << BYEL << "status 301 (" << _target << ')' << CRESET << std::endl;
-					_response += request.getVersion() + ' ' + MOVED + "\r\n";
-				} else {
-					std::cout << BYEL << "status 200 (" << _target << ')' << CRESET << std::endl;
-					_response += request.getVersion() + ' ' + OK + "\r\n";
-				}
+				std::cout << BYEL << "status 200 (" << _target << ')' << CRESET << std::endl;
+				_response += request.getVersion() + ' ' + OK + "\r\n";
 
 				std::string payload = readFile(_target);
 
-				if (request.getHeaders().find("Cookie") == request.getHeaders().end())
+				if (request.getHeaders().find("Cookie") == request.getHeaders().end()) {
 					_response += bakeryCookies();
+				}
 
 				_response += "Content-Length: ";
 				_response += std::to_string(payload.length()) + "\r\n";
@@ -245,13 +241,11 @@ void Response::handle(Request const & request, Server const * server, Config con
 				std::map<std::string, std::string> const & contentTypes = config.getContentTypes();
 				if (contentTypes.find(extension) != contentTypes.end()) {
 					_response += "Content-Type: ";
-					if (server->redirect.find(uri) != server->redirect.end()) {
-						_response += "Location: " + server->redirect.at(uri) + "\r\n";
-					}
 					_response += contentTypes.at(extension) + "\r\n";
 				} else {
 					std::cerr << "unhandled extension: '" << extension << '\'' << std::endl;
 				}
+
 				_response += "\r\n";
 				_response += payload;
 

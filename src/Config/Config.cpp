@@ -121,8 +121,8 @@ void Config::load(char const *ConfigFileName, char **env) {
 				else if (word == "server") {
 					if (getWord(line, word)) throw std::runtime_error(std::to_string(line_number) + ": Invalid line");
 					if (endl_char != '{') throw std::runtime_error(std::to_string(line_number) + ": 'server' rule must be a block");
+					server.uploads.clear(); server.pages.clear(); server.cgi.clear(); server.redirect.clear();
 					server.servername.clear(); server.locations.clear(); server.addresses.clear();
-					server.uploads.clear(); server.pages.clear(); server.cgi.clear();
 					blocklvl = SERVER_BLOCK;
 				} else throw std::runtime_error(std::to_string(line_number) + ": " + word + ": Unrecognized http rule");
 				break;
