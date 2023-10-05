@@ -170,6 +170,12 @@ void Config::load(char const *ConfigFileName, char **env) {
 					line.erase(line.find_last_not_of(" \t") + 1);
 					if (not isFile(line)) throw std::runtime_error(std::to_string(line_number) + ": unable to access file (" + line + ")");
 					server.pages[word] = line;
+				} else if (word == "redirect") {
+					if (not getWord(line, word)) throw std::runtime_error(std::to_string(line_number) + ": 'redirect' expect two arguments");
+					line.erase(0, line.find_first_not_of(" \t"));
+					line.erase(line.find_last_not_of(" \t") + 1);
+					server.redirect[word] = line;
+					std::cout << word << ": " << server.redirect[word] << std::endl;
 				} else throw std::runtime_error(std::to_string(line_number) + ": " + word + ": Unrecognized server rule");
 				break;
 

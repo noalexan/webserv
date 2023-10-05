@@ -21,6 +21,7 @@ struct Server {
 	std::map<std::string, std::string>	uploads;
 	std::map<std::string, std::string>	pages;
 	std::map<std::string, std::string>	cgi;
+	std::map<std::string, std::string>	redirect;
 
 	int									port;
 	int									fd;
