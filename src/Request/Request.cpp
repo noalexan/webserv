@@ -101,7 +101,9 @@ void Request::parse(Server const * server) {
 		std::cout << "looking for location: " << locationPath << std::endl;
 	}
 
-	_location = (Location *) &server->locations.at(locationPath);
-	_target = _location->root + '/' + _uri.substr(locationPath.length());
+	try {
+		_location = (Location *) &server->locations.at(locationPath);
+		_target = _location->root + '/' + _uri.substr(locationPath.length());
+	} catch(std::exception &) {}
 
 }

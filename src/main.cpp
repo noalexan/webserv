@@ -21,13 +21,15 @@ void launch(Config const &config) {
 
 	struct kevent events[MAX_EVENTS], changes;
 
-	std::map<int, Server> const & servers = config.getServers();
+	std::vector<Server> const & servers = config.getServers();
 	std::map<int, Client> clients;
 
-	for (std::map<int, Server>::const_iterator server = servers.begin(); server != servers.end(); server++) {
-		EV_SET(&changes, server->second.fd, EVFILT_READ, EV_ADD, 0, 0, nullptr);
-		if (kevent(kq, &changes, 1, nullptr, 0, nullptr) == -1) {
-			throw std::runtime_error("kevent() failed");
+	for (std::vector<Server>::const_iterator server = servers.begin(); server != servers.end(); server++) {
+		for (std::vector<Address>::const_iterator address = server->addresses.begin(); address != server->addresses.end(); address++) {
+			EV_SET(&changes, address->fd, EVFILT_READ, EV_ADD, 0, 0, nullptr);
+			if (kevent(kq, &changes, 1, nullptr, 0, nullptr) == -1) {
+				throw std::runtime_error("kevent() failed");
+			}
 		}
 	}
 
@@ -65,45 +67,56 @@ void launch(Config const &config) {
 
 					std::cout << BMAG << "disconnect" << CRESET << std::endl;
 
-				} else if (servers.find(events[i].ident) != servers.end()) {
+				}
+				
+				bool isServer = false;
+				for (std::vector<Server>::const_iterator server = servers.begin(); server != servers.end() and not isServer; server++) {
+					for (std::vector<Address>::const_iterator address = server->addresses.begin(); address != server->addresses.end() and not isServer; address++) {
+						if (address->fd == (int) events[i].ident) {
 
-					sockaddr_in client_address;
-					socklen_t client_address_len = sizeof(client_address);
-					int client_fd;
+							std::cout << "receiving request from server '" << server->servername << '\'' << std::endl;
+							isServer = true;
 
-					if ((client_fd = accept(servers.at(events[i].ident).fd, (struct sockaddr *) &client_address, &client_address_len)) == -1) {
-						throw std::runtime_error("accept() failed");
+							sockaddr_in client_address;
+							socklen_t client_address_len = sizeof(sockaddr_in);
+							int client_fd = accept(events[i].ident, (sockaddr *) &client_address, &client_address_len);
+
+							if (client_fd == -1) {
+								throw std::runtime_error("accept() failed");
+							}
+
+							fcntl(client_fd, F_SETFL, O_NONBLOCK, FD_CLOEXEC);
+							EV_SET(&changes, client_fd, EVFILT_READ, EV_ADD, 0, 0, nullptr); // je t'ai vu jouer a la marelle
+
+							timeout.tv_sec = 5; // sautillant sur le macadame
+							timeout.tv_nsec = 0; // te voici maintenant jouvancelle
+
+							if (kevent(kq, &changes, 1, nullptr, 0, &timeout) == -1) { // dans un corps pas tout a fait femme
+								throw std::runtime_error("kevent() failed"); // je vais t'apprendre un jeu extra
+							} // qu'il ne faudra pas repeter
+
+							timeout.tv_sec = 5; // la regle est simple tu verras
+							timeout.tv_nsec = 0; // il suffit juste de s'embrasser
+
+							EV_SET(&changes, client_fd, EVFILT_TIMER, EV_ADD, NOTE_SECONDS, TIMEOUT_S, nullptr);
+							if (kevent(kq, &changes, 1, nullptr, 0, &timeout) == -1) {
+								throw std::runtime_error("kevent() failed");
+							}
+
+							Client client;
+
+							client.server = &*server;
+							client.request.setFd(client_fd);
+							client.response.setFd(client_fd);
+
+							clients[client_fd] = client;
+
+							std::cout << BGRN << "new client" << CRESET << std::endl;
+						}
 					}
+				}
 
-					fcntl(client_fd, F_SETFL, O_NONBLOCK, FD_CLOEXEC);
-					EV_SET(&changes, client_fd, EVFILT_READ, EV_ADD, 0, 0, nullptr); // je t'ai vu jouer a la marelle
-
-					timeout.tv_sec = 5; // sautillant sur le macadame
-					timeout.tv_nsec = 0; // te voici maintenant jouvancelle
-
-					if (kevent(kq, &changes, 1, nullptr, 0, &timeout) == -1) { // dans un corps pas tout a fait femme
-						throw std::runtime_error("kevent() failed"); // je vais t'apprendre un jeu extra
-					} // qu'il ne faudra pas repeter
-
-					timeout.tv_sec = 5; // la regle est simple tu verras
-					timeout.tv_nsec = 0; // il suffit juste de s'embrasser
-
-					EV_SET(&changes, client_fd, EVFILT_TIMER, EV_ADD, NOTE_SECONDS, TIMEOUT_S, nullptr);
-					if (kevent(kq, &changes, 1, nullptr, 0, &timeout) == -1) {
-						throw std::runtime_error("kevent() failed");
-					}
-
-					Client client;
-
-					client.server = &servers.at(events[i].ident);
-					client.request.setFd(client_fd);
-					client.response.setFd(client_fd);
-
-					clients[client_fd] = client;
-
-					std::cout << BGRN << "new client" << CRESET << std::endl;
-
-				} else if (clients.find(events[i].ident) != clients.end()) {
+				if (not isServer and clients.find(events[i].ident) != clients.end()) {
 					switch (events[i].filter) {
 
 						case EVFILT_READ:
@@ -202,29 +215,38 @@ void launch(Config const &config) {
 
 void listen(Server const &server) {
 
-	int opt = 1;
-	if (setsockopt(server.fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1) {
-		throw std::runtime_error("setsockopt() failed");
-	}
+	std::cout << "Starting server: '" << server.servername << '\'' << std::endl;
 
-	if (bind(server.fd, (struct sockaddr *) &server.address, sizeof(server.address)) == -1) {
-		throw std::runtime_error("bind() failed");
-	}
+	for (std::vector<Address>::const_iterator address = server.addresses.begin(); address != server.addresses.end(); address++) {
 
-	if (listen(server.fd, MAX_EVENTS) == -1) {
-		throw std::runtime_error("listen() failed");
-	}
+		int opt = 1;
+		if (setsockopt(address->fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1) {
+			throw std::runtime_error("setsockopt() failed");
+		}
 
-	std::cout << "Listening on port " << server.port << "..." << std::endl;
+		if (bind(address->fd, (struct sockaddr *) &address->address, sizeof(address->address)) == -1) {
+			throw std::runtime_error("bind() failed");
+		}
+
+		if (listen(address->fd, MAX_EVENTS) == -1) {
+			throw std::runtime_error("listen() failed");
+		}
+
+		std::cout << "Listening on port " << address->port << "..." << std::endl;
+
+	}
 
 }
 
 void cleanup(Config const & config) {
 	std::cout << "Cleaning up..." << std::endl;
-	for (std::map<int, Server>::const_iterator server = config.getServers().begin(); server != config.getServers().end(); server++) {
-		std::cout << "Closing port " << server->second.port << "..." << std::endl;
-		if (close(server->first) == -1) {
-			throw std::runtime_error("close() failed");
+	std::vector<Server> const & servers = config.getServers();
+	for (std::vector<Server>::const_iterator server = servers.begin(); server != servers.end(); server++) {
+		for (std::vector<Address>::const_iterator address = server->addresses.begin(); address != server->addresses.end(); address++) {
+			std::cout << "Closing port " << address->port << "..." << std::endl;
+			if (close(address->fd) == -1) {
+				throw std::runtime_error("close() failed");
+			}
 		}
 	}
 }
@@ -261,8 +283,9 @@ int main(int argc, char ** argv, char **env) {
 
 	// Listening
 	try {
-		for (std::map<int, Server>::const_iterator server = config.getServers().begin(); server != config.getServers().end(); server++) {
-			listen(server->second);
+		std::vector<Server> const & servers = config.getServers();
+		for (std::vector<Server>::const_iterator server = servers.begin(); server != servers.end(); server++) {
+			listen(*server);
 		}
 	} catch (std::exception &e) {
 		std::cerr << e.what() << std::endl;

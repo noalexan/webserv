@@ -83,7 +83,7 @@ void Response::handle(Request const & request, Server const * server, Config con
 		if (isDirectory(_target) or _target[_target.length() - 1] == '/') {
 			if (_target[_target.length() - 1] != '/') _target += '/';
 
-			for (std::deque<std::string>::const_iterator it = request.getLocation()->indexes.begin(); it != request.getLocation()->indexes.end(); it++) {
+			for (std::vector<std::string>::const_iterator it = request.getLocation()->indexes.begin(); it != request.getLocation()->indexes.end(); it++) {
 				if (isFile(_target + *it)) {
 					_target += *it;
 					break;

@@ -2,32 +2,36 @@
 # define CONFIG_HPP
 
 # include <string>
-# include <deque>
+# include <vector>
 # include <map>
 
 # include <netinet/in.h>
 
+struct Address {
+	int                port;
+	int                fd;
+	struct sockaddr_in address;
+};
+
 struct Location {
-	std::string				uri;
-	std::string				root;
-	std::deque<std::string>	indexes;
-	std::deque<std::string>	methods;
-	bool					directory_listing;
+	std::string              uri;
+	std::string              root;
+	std::vector<std::string> indexes;
+	std::vector<std::string> methods;
+	bool                     directory_listing;
 };
 
 struct Server {
-	std::deque<std::string>				hosts;
-	std::map<std::string, Location>		locations;
-	std::map<std::string, std::string>	uploads;
-	std::map<std::string, std::string>	pages;
-	std::map<std::string, std::string>	cgi;
-	std::map<std::string, std::string>	redirect;
+	std::vector<Address>               addresses;
+	std::map<std::string, Location>    locations;
+	std::map<std::string, std::string> redirect;
+	std::map<std::string, std::string> uploads;
+	std::map<std::string, std::string> pages;
+	std::map<std::string, std::string> cgi;
 
-	int									port;
-	int									fd;
-	unsigned long						max_client_body_size;
-	struct sockaddr_in					address;
-	char								**env;
+	std::string                        servername;
+	unsigned long                      max_client_body_size;
+	char                               **env;
 
 };
 
@@ -35,8 +39,8 @@ class Config {
 
 	private:
 
-		std::map<int, Server>				_servers;
-		std::map<std::string, std::string>	_contentTypes;
+		std::vector<Server>                _servers;
+		std::map<std::string, std::string> _contentTypes;
 
 	public:
 
@@ -45,7 +49,7 @@ class Config {
 		void load(char const * ConfigFileName, char **env);
 		void setDefault();
 
-		std::map<int, Server> const & getServers() const { return _servers; }
+		std::vector<Server> const & getServers() const { return _servers; }
 		std::map<std::string, std::string> const & getContentTypes() const { return _contentTypes; }
 
 };

@@ -121,30 +121,33 @@ void Config::load(char const *ConfigFileName, char **env) {
 				else if (word == "server") {
 					if (getWord(line, word)) throw std::runtime_error(std::to_string(line_number) + ": Invalid line");
 					if (endl_char != '{') throw std::runtime_error(std::to_string(line_number) + ": 'server' rule must be a block");
-					server.locations.clear();
-					server.uploads.clear();
-					server.pages.clear();
-					server.cgi.clear();
+					server.servername.clear(); server.locations.clear(); server.addresses.clear();
+					server.uploads.clear(); server.pages.clear(); server.cgi.clear();
 					blocklvl = SERVER_BLOCK;
 				} else throw std::runtime_error(std::to_string(line_number) + ": " + word + ": Unrecognized http rule");
 				break;
 
 			case SERVER_BLOCK:
 				if (word.empty() and endl_char == '}') {
-					if (server.port == 0) throw std::runtime_error(std::to_string(line_number) + ": No port specified");
-					server.address = (sockaddr_in) {.sin_family = AF_INET, .sin_port = htons(server.port), .sin_addr.s_addr = htonl(INADDR_ANY)};
-					server.fd = socket(AF_INET, SOCK_STREAM, 0);
-					_servers[server.fd] = server;
-					server.port = 0;
+					if (server.addresses.size() == 0) throw std::runtime_error(std::to_string(line_number) + ": No port specified");
+					_servers.push_back(server);
 					blocklvl = HTTP_BLOCK;
 				} else if (word == "listen") {
 					if (endl_char == '{') throw std::runtime_error(std::to_string(line_number) + ": 'listen' mustn't be a block");
-					if (not getWord(line, word) or getWord(line, word)) throw std::runtime_error(std::to_string(line_number) + ": 'listen' expect an argument");
-					if ((server.port = parseInt(word)) == 0) throw std::runtime_error(std::to_string(line_number) + ": Invalid port");
-				} else if (word == "hosts") {
-					if (endl_char == '{') throw std::runtime_error(std::to_string(line_number) + ": 'hosts' mustn't be a block");
 					if (not getWord(line, word)) throw std::runtime_error(std::to_string(line_number) + ": Invalid line");
-					do { server.hosts.push_back(word); } while (getWord(line, word));
+					do {
+						Address address;
+						address.port = parseInt(word);
+						if (address.port == -1) throw std::runtime_error(std::to_string(line_number) + ": invalid port");
+						address.address = (sockaddr_in) {.sin_family = AF_INET, .sin_port = htons(address.port), .sin_addr.s_addr = htonl(INADDR_ANY)};
+						address.fd = socket(AF_INET, SOCK_STREAM, 0);
+						server.addresses.push_back(address);
+					} while (getWord(line, word));
+				} else if (word == "server_name") {
+					if (endl_char == '{') throw std::runtime_error(std::to_string(line_number) + ": 'server_name' mustn't be a block");
+					line.erase(0, line.find_first_not_of(" \t"));
+					line.erase(line.find_last_not_of(" \t") + 1);
+					server.servername = line;
 				} else if (word == "location") {
 					if (endl_char != '{') throw std::runtime_error(std::to_string(line_number) + ": location must be a block");
 					if (not getWord(line, location.uri) or getWord(line, word)) throw std::runtime_error(std::to_string(line_number) + ": location require uri as argument");
@@ -224,14 +227,27 @@ void Config::load(char const *ConfigFileName, char **env) {
 	}
 
 	file.close();
+
+	for (std::vector<Server>::const_iterator server = _servers.begin(); server != _servers.end(); server++) {
+		for (std::vector<Server>::const_iterator server2 = server + 1; server2 != _servers.end(); server2++) {
+			if (server->servername == server2->servername) {
+				throw std::runtime_error("conflicting with servers's name");
+			}
+		}
+	}
+
 }
 
 void Config::setDefault() {
 	Server server;
 
-	server.port = 8080;
-	server.address = (sockaddr_in) {.sin_family = AF_INET, .sin_port = htons(server.port), .sin_addr.s_addr = htonl(INADDR_ANY)};
-	server.fd = socket(AF_INET, SOCK_STREAM, 0);
+	Address address;
+
+	address.port = 8080;
+	address.address = (sockaddr_in) {.sin_family = AF_INET, .sin_port = htons(address.port), .sin_addr.s_addr = htonl(INADDR_ANY)};
+	address.fd = socket(AF_INET, SOCK_STREAM, 0);
+
+	server.addresses.push_back(address);
 
 	Location location;
 
@@ -241,5 +257,5 @@ void Config::setDefault() {
 
 	server.locations[location.uri] = location;
 
-	_servers[server.fd] = server;
+	_servers.push_back(server);
 }
