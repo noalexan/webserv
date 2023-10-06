@@ -270,7 +270,7 @@ int main(int argc, char ** argv, char **env) {
 	Config config;
 	try {
 		if (argc != 2) std::cout << "No config file given, using default" << std::endl;
-		config.load((argc == 2) ? argv[1] : "webserv.conf", env);
+		config.load(argc == 2 ? argv[1] : "webserv.conf", env);
 	} catch (std::exception &e) {
 		std::cerr << e.what() << std::endl;
 		try {

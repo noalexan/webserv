@@ -237,25 +237,3 @@ void Config::load(char const *ConfigFileName, char **env) {
 	}
 
 }
-
-void Config::setDefault() {
-	Server server;
-
-	Address address;
-
-	address.port = 8080;
-	address.address = (sockaddr_in) {.sin_family = AF_INET, .sin_port = htons(address.port), .sin_addr.s_addr = htonl(INADDR_ANY)};
-	address.fd = socket(AF_INET, SOCK_STREAM, 0);
-
-	server.addresses.push_back(address);
-
-	Location location;
-
-	location.uri = "/";
-	location.root = "/";
-	location.directory_listing = true;
-
-	server.locations[location.uri] = location;
-
-	_servers.push_back(server);
-}

@@ -47,7 +47,6 @@ class Config {
 		Config();
 
 		void load(char const * ConfigFileName, char **env);
-		void setDefault();
 
 		std::vector<Server> const & getServers() const { return _servers; }
 		std::map<std::string, std::string> const & getContentTypes() const { return _contentTypes; }
