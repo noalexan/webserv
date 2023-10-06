@@ -11,6 +11,13 @@
 #define MAX_EVENTS 512
 #define TIMEOUT_S 2
 
+/*
+
+	TODO:
+		- Make the CGI request works with POST method too
+
+*/
+
 void launch(Config const &config) {
 
 	int kq = kqueue();
@@ -259,17 +266,11 @@ int main(int argc, char ** argv, char **env) {
 		return USAGE_FAILURE;
 	}
 
-	// // Ignore SIGPIPE
-	// if (signal(SIGPIPE, SIG_IGN) == SIG_ERR) {
-	// 	std::cerr << "signal() failed" << std::endl;
-	// 	return SIGNAL_FAILURE;
-	// }
-
 	// Getting config
 	Config config;
 	try {
-		if (argc == 2) config.load(argv[1], env);
-		else config.setDefault();
+		if (argc != 2) std::cout << "No config file given, using default" << std::endl;
+		config.load((argc == 2) ? argv[1] : "webserv.conf", env);
 	} catch (std::exception &e) {
 		std::cerr << e.what() << std::endl;
 		try {
