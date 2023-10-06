@@ -220,7 +220,15 @@ void Response::handle(Request const & request, Server const * server, Config con
 						_response += cgi_output;
 
 					} else {
-						throw std::runtime_error("Error fork()");
+						std::string payload  = (server->pages.find("500") != server->pages.end()) ? readFile(server->pages.at("500")) : "Internal Error\r\n";
+						std::cout << BYEL << "status 500 (" << _target << ')' << CRESET << std::endl;
+
+						_response += request.getVersion() + ' ' + INTERNAL_ERROR + "\r\n";
+						_response += "Content-Length: ";
+						_response += std::to_string(payload.length()) + "\r\n";
+						_response += "Content-Type: text/html\r\n\r\n";
+						_response += payload;
+
 					}
 
 				}
