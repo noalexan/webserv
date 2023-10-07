@@ -50,7 +50,8 @@ class Response {
 
 		void setFd(int const & fd);
 		void handle(Request const &, Server const * server, Config const & config, bool const & timeout);
-		void payloadTooLarge(Server const * const server);
+		void responseMaker(Server const * const server, std::string const & statusCode, std::string const & statusHeader);
+		void responseMaker(Server const * const server, std::string const & statusCode, std::string const & statusHeader, std::string const & redirection);
 		void write();
 		bool const & isFinished() const;
 

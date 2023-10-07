@@ -59,32 +59,17 @@ void Response::handle(Request const & request, Server const * server, Config con
 	std::string const & uri = request.getUri();
 
 	if (timeout) {
-		std::string payload = (server->pages.find("408") != server->pages.end()) ? readFile(server->pages.at("408")) : "Request Timeout\r\n";
 		std::cout << BYEL << "status 408" << CRESET << std::endl;
-
-		_response += std::string("HTTP/1.1 ") + REQUEST_TIMEOUT + "\r\n";
-		_response += std::string("Content-Length: ") + std::to_string(payload.length()) + "\r\n";
-		_response += "Content-Type: text/html\r\n\r\n";
-		_response += payload;
+		responseMaker(server, "408", REQUEST_TIMEOUT);
 
 	} else if (server->redirect.find(uri) != server->redirect.end()) {
 		std::cout << BYEL << "status 301 (" << request.getMethod() << ')' << CRESET << std::endl;
-		std::string payload = (server->pages.find("301") != server->pages.end()) ? readFile(server->pages.at("301")) : "Moved\r\n";
+		responseMaker(server, "301", MOVED, server->redirect.at(uri));
 
-		_response += std::string("HTTP/1.1 ") + MOVED + "\r\n";
-		_response += std::string("Content-Length: ") + std::to_string(payload.length()) + "\r\n";
-		_response += "Location: ";
-		_response += server->redirect.at(uri) + "\r\n";
-		_response += "Content-Type: text/html\r\n\r\n";
-		_response += payload;
 	} else if (request.getLocation() && std::find(request.getLocation()->methods.begin(), request.getLocation()->methods.end(), request.getMethod()) == request.getLocation()->methods.end() && (request.getMethod() != "POST" || server->uploads.find(uri) == server->uploads.end())) {
 		std::cout << BYEL << "status 405 (" << request.getMethod() << ')' << CRESET << std::endl;
-		std::string payload = (server->pages.find("405") != server->pages.end()) ? readFile(server->pages.at("405")) : "Method Not Allowed\r\n";
+		responseMaker(server, "405", METHOD_NOT_ALLOWED);
 
-		_response += std::string("HTTP/1.1 ") + METHOD_NOT_ALLOWED + "\r\n";
-		_response += std::string("Content-Length: ") + std::to_string(payload.length()) + "\r\n";
-		_response += "Content-Type: text/html\r\n\r\n";
-		_response += payload;
 	} else if (request.getMethod() == "GET") {
 
 		std::string _target = request.getTarget();
@@ -142,16 +127,8 @@ void Response::handle(Request const & request, Server const * server, Config con
 				}
 
 			} else {
-
-				std::string payload = server->pages.find("403") != server->pages.end() ? readFile(server->pages.at("403")) : "Forbidden\r\n";
 				std::cout << BYEL << "status 403 (" << _target << ')' << CRESET << std::endl;
-
-				_response += request.getVersion() + ' ' + FORBIDDEN + "\r\n";
-				_response += "Content-Length: ";
-				_response += std::to_string(payload.length()) + "\r\n";
-				_response += "Content-Type: text/html\r\n\r\n";
-				_response += payload;
-
+				responseMaker(server, "403", FORBIDDEN);
 			}
 
 		} else if (isFile(_target)) {
@@ -220,15 +197,8 @@ void Response::handle(Request const & request, Server const * server, Config con
 						_response += cgi_output;
 
 					} else {
-						std::string payload  = (server->pages.find("500") != server->pages.end()) ? readFile(server->pages.at("500")) : "Internal Error\r\n";
 						std::cout << BYEL << "status 500 (" << _target << ')' << CRESET << std::endl;
-
-						_response += request.getVersion() + ' ' + INTERNAL_ERROR + "\r\n";
-						_response += "Content-Length: ";
-						_response += std::to_string(payload.length()) + "\r\n";
-						_response += "Content-Type: text/html\r\n\r\n";
-						_response += payload;
-
+						responseMaker(server, "500", INTERNAL_ERROR);
 					}
 
 				}
@@ -259,16 +229,8 @@ void Response::handle(Request const & request, Server const * server, Config con
 
 			}
 		} else {
-
-			std::string payload  = (server->pages.find("404") != server->pages.end()) ? readFile(server->pages.at("404")) : "Not Found\r\n";
 			std::cout << BYEL << "status 404 (" << _target << ')' << CRESET << std::endl;
-
-			_response += request.getVersion() + ' ' + NOT_FOUND + "\r\n";
-			_response += "Content-Length: ";
-			_response += std::to_string(payload.length()) + "\r\n";
-			_response += "Content-Type: text/html\r\n\r\n";
-			_response += payload;
-
+			responseMaker(server, "404", NOT_FOUND);
 		}
 
 	} else if (request.getMethod() == "POST" && server->uploads.find(uri) != server->uploads.end()) {
@@ -291,15 +253,8 @@ void Response::handle(Request const & request, Server const * server, Config con
 				upload << content.substr(content.find("\r\n\r\n") + 4);
 
 			} // ? Quand noah est en train de cook sérieusment, il ne faut pas le déranger
-
-			std::string payload  = (server->pages.find("201") != server->pages.end()) ? readFile(server->pages.at("201")) : "Created\r\n";
 			std::cout << BYEL << "status 201 (" << uri << ')' << CRESET << std::endl;
-
-			_response += request.getVersion() + ' ' + CREATED + "\r\n";
-			_response += "Content-Length: ";
-			_response += std::to_string(payload.length()) + "\r\n";
-			_response += "Content-Type: text/html\r\n\r\n";
-			_response += payload;
+			responseMaker(server, "201", CREATED);
 		}
 
 	} else if (request.getMethod() == "DELETE" && server->uploads.find(uri.substr(0, uri.find_last_of('/'))) != server->uploads.end()) {
@@ -307,14 +262,8 @@ void Response::handle(Request const & request, Server const * server, Config con
 		std::string folder = uri.substr(0, uri.find_last_of('/'));
 
 		if (remove(target.c_str()) == -1) {
-			std::string payload  = (server->pages.find("404") != server->pages.end()) ? readFile(server->pages.at("404")) : "Not Found\r\n";
 			std::cout << BYEL << "status 404 (" << target << ')' << CRESET << std::endl;
-
-			_response += request.getVersion() + ' ' + NOT_FOUND + "\r\n";
-			_response += "Content-Length: ";
-			_response += std::to_string(payload.length()) + "\r\n";
-			_response += "Content-Type: text/html\r\n\r\n";
-			_response += payload;
+			responseMaker(server, "404", NOT_FOUND);
 
 		} else {
 			std::cout << BYEL << "status 204 (" << target << ")" << CRESET << std::endl;
@@ -322,23 +271,26 @@ void Response::handle(Request const & request, Server const * server, Config con
 		}
 
 	} else {
-		std::string payload  = (server->pages.find("403") != server->pages.end()) ? readFile(server->pages.at("403")) : "Forbidden\r\n";
 		std::cout << BYEL << "status 403" << CRESET << std::endl;
-
-		_response += request.getVersion() + ' ' + FORBIDDEN + "\r\n";
-		_response += "Content-Length: ";
-		_response += std::to_string(payload.length()) + "\r\n";
-		_response += "Content-Type: text/html\r\n\r\n";
-		_response += payload;
+		responseMaker(server, "403", FORBIDDEN);
 	}
 }
 
-void Response::payloadTooLarge(Server const * const server) {
-	std::cout << BYEL << "status 413" << CRESET << std::endl;
-	std::string payload  = (server->pages.find("413") != server->pages.end()) ? readFile(server->pages.at("413")) : "Payload Too Large\r\n";
+void Response::responseMaker(Server const * const server, std::string const & statusCode, std::string const & statusHeader) {
+	std::string payload  = (server->pages.find(statusCode) != server->pages.end()) ? readFile(server->pages.at(statusCode)) : statusHeader + "\r\n";
 
-	_response += std::string("HTTP/1.1 ") + PAYLOAD_TOO_LARGE + "\r\n";
+	_response += std::string("HTTP/1.1 ") + statusHeader + "\r\n";
 	_response += std::string("Content-Length: ") + std::to_string(payload.length()) + "\r\n";
+	_response += "Content-Type: text/html\r\n\r\n";
+	_response += payload;
+}
+
+void Response::responseMaker(Server const * const server, std::string const & statusCode, std::string const & statusHeader, std::string const & redirection) {
+	std::string payload  = (server->pages.find(statusCode) != server->pages.end()) ? readFile(server->pages.at(statusCode)) : statusHeader + "\r\n";
+
+	_response += std::string("HTTP/1.1 ") + statusHeader + "\r\n";
+	_response += std::string("Content-Length: ") + std::to_string(payload.length()) + "\r\n";
+	_response += "Location: " + redirection + "\r\n";
 	_response += "Content-Type: text/html\r\n\r\n";
 	_response += payload;
 }
