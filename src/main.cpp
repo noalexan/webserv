@@ -8,7 +8,7 @@
 #include <Config/Config.hpp>
 #include <Client.hpp>
 
-#define MAX_EVENTS 512
+#define MAX_EVENTS 1024
 #define TIMEOUT_S 2
 
 /*

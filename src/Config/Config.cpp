@@ -69,7 +69,6 @@ void Config::load(char const *ConfigFileName, char **env) {
 	Location location;
 
 	server.env = env;
-	location.directory_listing = true;
 
 	std::string line;
 	std::string save;
@@ -151,6 +150,7 @@ void Config::load(char const *ConfigFileName, char **env) {
 				} else if (word == "location") {
 					if (endl_char != '{') throw std::runtime_error(std::to_string(line_number) + ": location must be a block");
 					if (not getWord(line, location.uri) or getWord(line, word)) throw std::runtime_error(std::to_string(line_number) + ": location require uri as argument");
+					location.directory_listing = true;
 					blocklvl = LOCATION_BLOCK;
 				} else if (word == "max_client_body_size") {
 					if (not getWord(line, word) or getWord(line, word)) throw std::runtime_error(std::to_string(line_number) + ": 'max_client_body_size' expect an argument");

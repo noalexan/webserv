@@ -35,7 +35,7 @@ void Request::read(size_t const & max_body_size) {
 			if (contentLenght > max_body_size) {
 				_payload_too_large = true;
 				_finished = true;
-			} else if (contentLenght <= _request.length() - headerEndPos - 4) {
+			} else if (contentLenght <= _request.length() - headerEndPos) {
 				_request.erase(headerEndPos + contentLenght);
 				_finished = true;
 			}
