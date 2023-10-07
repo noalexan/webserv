@@ -1,9 +1,9 @@
-CC=c++
-CXXFLAGS=-Werror -Wextra -Wall -std=c++98
+CC=g++
+CXXFLAGS=-Werror -Wextra -Wall -std=c++98 -Isrc -O3
 
 NAME=webserv
 
-SRC=$(addprefix src/, main.cpp)
+SRC=$(addprefix src/, main.cpp Config/Config.cpp Request/Request.cpp Response/Response.cpp)
 OBJ=$(SRC:.cpp=.o)
 
 all: $(NAME)

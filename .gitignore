@@ -1,2 +1,7 @@
 webserv
 *.o
+.vscode
+a.out
+.DS_Store
+*.swp
+*test*

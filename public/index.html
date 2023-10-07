@@ -1,0 +1,117 @@
+
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" >
+		<meta http-equiv="X-UA-Compatible" content="IE=edge" >
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" >
+		<title>CACA</title>
+
+		<!-- ca check le source code ?? 😏😏 -->
+
+		<style>
+
+			body {
+				animation: background .2s linear infinite;
+			}
+
+			h1 { animation: fontsize 5s ease-in-out infinite;}
+
+			img#noalexan { animation: swipe 1s linear infinite; }
+			img#mayoub { animation: swipe 1.3s linear infinite; }
+
+			img { transition: .2s ease-in-out;animation: rotationLETSGO 2s linear infinite; }
+			img:hover { transform: rotate(360deg); }
+
+			@keyframes background {
+				0% {
+					background: darkmagenta;
+				}
+
+				50% {
+					background: cyan
+				}
+
+				100% {
+					background: goldenrod;
+				}
+			}
+
+			@keyframes rotationLETSGO {
+				50%, 70% {
+					transform: rotate(0deg);
+				}
+				60% {
+					transform: rotate(360deg);
+				}
+			}
+
+			@keyframes swipe {
+				0% {
+					margin-left: 0px;
+				}
+				100% {
+					margin-left: calc(100% - 600px);
+				}
+			}
+
+			@keyframes fontsize {
+				0%, 100% {
+					font-size: 30px;
+				}
+				50% {
+					font-size: 40px
+				}
+			}
+
+		</style>
+
+	</head>
+	<body>
+
+		<img src="assets/media/monkey.gif" alt="logo" />
+
+		<?php
+			echo "Hello World !";
+		?>
+
+		<h2>
+			noah montre tes pieds
+		</h2>
+
+		<h1>
+			WE ARE CHERCHING F0r 1 WEB DISIGNERR URGENT POR FAVOR THANKS PLEAZE
+		</h1>
+
+		<ul>
+			<li>
+				<a href="assets/">images</a>
+			</li>
+			<li>
+				<a href="cgi/">cgi</a>
+			</li>
+			<li>
+				<a href="a bout/">about</a>
+			</li>
+			<li>
+				<a href="upload/">upload</a>
+			</li>
+		</ul>
+
+		<form action="/upload" method="post" enctype="multipart/form-data">
+			<input type="file" name="file" id="file">
+			<input type="submit" value="Submit" />
+		</form>
+
+		<p>
+			je te détruis noah
+		</p>
+
+		<p>Lorem ipsum dolor sit amet consectetur adipisicing elit. Voluptatum, quae. Lorem ipsum dolor sit amet. Lorem ipsum dolor sit, amet consectetur adipisicing elit. Minima perspiciatis, similique non corporis minus eveniet rem blanditiis consequuntur beatae eos provident libero enim numquam ab atque, nam natus dolorum sequi est. Optio aspernatur, fuga rem mollitia exercitationem nihil. Sequi, quam. Repellat expedita asperiores cupiditate illum tenetur minus dicta repellendus amet dolor vel aperiam dignissimos reiciendis necessitatibus velit nobis unde, quis perferendis at! Natus qui saepe exercitationem voluptatem, rerum sapiente recusandae minus beatae, ducimus quod voluptatum! Ut fuga placeat vel doloribus minima pariatur eaque non expedita! Vero illum iusto eius cupiditate eveniet rerum voluptatibus debitis porro cumque. Repellendus corrupti minima saepe!</p>
+
+		<img id="mayoub" src="assets/media/mayoub.jpg" alt="Un débilos de 1ère classe" title="Faut pas lui faire confiance..." width="600px" height="150px" />
+		<img id="noalexan" src="assets/media/noalexan.jpg" alt="Les plus beau pieds de 42 Network" title="Je ne vous raconte pas comment ses pieds sont incroyable 😩" width="600px" height="150px"/>
+
+	</body>
+</html>
+
