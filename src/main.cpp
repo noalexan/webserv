@@ -261,6 +261,12 @@ void cleanup(Config const & config) {
 
 int main(int argc, char ** argv, char **env) {
 
+	// Ignore SIGPIPE
+ 	if (signal(SIGPIPE, SIG_IGN) == SIG_ERR) {
+ 		std::cerr << "signal() failed" << std::endl;
+ 		return SIGNAL_FAILURE;
+ 	}
+
 	// Check arguments
 	if (argc > 2) {
 		std::cerr << "Usage: " << ((argc) ? argv[0] : "webserv") << " <config_file>" << std::endl;
