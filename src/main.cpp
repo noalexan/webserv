@@ -1,22 +1,18 @@
 #include <iostream>
+
 #include <unistd.h>
 #include <sys/event.h>
 #include <arpa/inet.h>
 #include <fcntl.h>
-#include <utils/ExitCode.hpp>
-#include <utils/Colors.hpp>
+
 #include <Config/Config.hpp>
 #include <Client.hpp>
 
+#include <utils/ExitCode.hpp>
+#include <utils/Colors.hpp>
+
 #define MAX_EVENTS 1024
 #define TIMEOUT_S 2
-
-/*
-
-	TODO:
-		- Make the CGI request works with POST method too
-
-*/
 
 void launch(Config const &config) {
 
@@ -42,6 +38,7 @@ void launch(Config const &config) {
 
 	timespec timeout;
 	int nev;
+
 	while (true) {
 
 		timeout.tv_sec = 5;
@@ -77,6 +74,7 @@ void launch(Config const &config) {
 				}
 				
 				bool isServer = false;
+
 				for (std::vector<Server>::const_iterator server = servers.begin(); server != servers.end() and not isServer; server++) {
 					for (std::vector<Address>::const_iterator address = server->addresses.begin(); address != server->addresses.end() and not isServer; address++) {
 						if (address->fd == (int) events[i].ident) {
@@ -159,7 +157,6 @@ void launch(Config const &config) {
 								}
 
 							}
-
 							break;
 
 						case EVFILT_WRITE:
@@ -179,7 +176,6 @@ void launch(Config const &config) {
 								std::cout << BMAG << "connection closed" << CRESET << std::endl;
 
 							}
-
 							break;
 
 						case EVFILT_TIMER:
@@ -205,7 +201,6 @@ void launch(Config const &config) {
 							if (kevent(kq, &changes, 1, nullptr, 0, &timeout) == -1) throw std::runtime_error("kevent() failed");
 
 							std::cout << BMAG << "client timed out" << CRESET << std::endl;
-
 							break;
 
 					}
@@ -332,5 +327,5 @@ int main(int argc, char ** argv, char **env) {
 
 }
 
-// Authors : Charly Tardy, Marwan Ayoub, Noah Alexandre
-// Version : 0.8
+// Authors : Marwan Ayoub, Noah Alexandre
+// Version : 1.0.0

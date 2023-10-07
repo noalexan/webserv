@@ -1,13 +1,17 @@
-#include <unistd.h>
-#include <stdio.h>
-#include <Response/Response.hpp>
-#include <sys/socket.h>
+#include <iostream>
 #include <fstream>
 #include <sstream>
+
+#include <unistd.h>
+#include <stdio.h>
+
+#include <sys/socket.h>
 #include <sys/stat.h>
+
 #include <fcntl.h>
-#include <iostream>
 #include <dirent.h>
+
+#include <Response/Response.hpp>
 #include <utils/Colors.hpp>
 
 #define BUFFER_SIZE 10240
@@ -50,9 +54,7 @@ static std::string const bakeryCookies() {
 
 Response::Response(): _finished(false) {}
 
-void Response::setFd(int const & fd) {
-	_fd = fd;
-}
+void Response::setFd(int const & fd) { _fd = fd; }
 
 void Response::handle(Request const & request, Server const * server, Config const & config, bool const & timeout){
 
@@ -94,8 +96,8 @@ void Response::handle(Request const & request, Server const * server, Config con
 
 				DIR *d;
 				struct dirent *dir;
-				d = opendir(_target.c_str());
 
+				d = opendir(_target.c_str());
 				std::string uri = request.getUri();
 				if (uri[uri.length() - 1] == '/') uri.pop_back();
 
@@ -141,11 +143,9 @@ void Response::handle(Request const & request, Server const * server, Config con
 				std::cout << UCYN << "CGI " << extension << " ---> " << server->cgi.at(extension) << CRESET << std::endl;
 
 				int	fd[2];
-				if (pipe(fd) < 0) {
-					throw std::runtime_error("Error pipe()");
-				}
-
 				int pid = fork();
+
+				if (pipe(fd) < 0) throw std::runtime_error("Error pipe()");
 				if (pid == 0) {
 
 					try {
@@ -167,9 +167,7 @@ void Response::handle(Request const & request, Server const * server, Config con
 
 				} else {
 
-					if (close(fd[1]) == -1) {
-						throw std::runtime_error("Error closing pipe fd[1] [PARENT]");
-					}
+					if (close(fd[1]) == -1) throw std::runtime_error("Error closing pipe fd[1] [PARENT]");
 
 					char buffer[BUFFER_SIZE];
 					ssize_t bytes_read;
@@ -179,13 +177,11 @@ void Response::handle(Request const & request, Server const * server, Config con
 						cgi_output.append(buffer, bytes_read);
 					}
 
-					if (close(fd[0]) == -1) {
-						throw std::runtime_error("Error closing pipe fd[0] [PARENT]");
-					}
+					if (close(fd[0]) == -1) throw std::runtime_error("Error closing pipe fd[0] [PARENT]");
 
 					int status;
-					waitpid(pid, &status, 0);
 
+					waitpid(pid, &status, 0);
 					if (WIFEXITED(status) and WEXITSTATUS(status) == 0) {
 
 						std::cout << BYEL << "status 200 (cgi)" << CRESET << std::endl;

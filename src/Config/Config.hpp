@@ -1,11 +1,11 @@
 #ifndef CONFIG_HPP
 # define CONFIG_HPP
 
-# include <string>
-# include <vector>
-# include <map>
+#include <string>
+#include <vector>
+#include <map>
 
-# include <netinet/in.h>
+#include <netinet/in.h>
 
 struct Address {
 	int                port;
@@ -38,12 +38,10 @@ struct Server {
 class Config {
 
 	private:
-
 		std::vector<Server>                _servers;
 		std::map<std::string, std::string> _contentTypes;
 
 	public:
-
 		Config();
 
 		void load(char const * ConfigFileName, char **env);
