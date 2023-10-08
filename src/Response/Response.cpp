@@ -4,20 +4,25 @@
 
 #include <unistd.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #include <sys/socket.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 
 #include <fcntl.h>
 #include <dirent.h>
 
+#include <algorithm>
+
 #include <Response/Response.hpp>
 #include <utils/Colors.hpp>
+#include <utils/utils.hpp>
 
 #define BUFFER_SIZE 10240
 
 static std::string readFile(std::string const & path) {
-	std::ifstream file(path);
+	std::ifstream file(path.c_str());
 	if (not file.good()) throw std::runtime_error("unable to open '" + path + '\'');
 	std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
 	file.close();
@@ -45,7 +50,7 @@ static std::string const bakeryCookies() {
 	std::string cookie;
 
 	cookie += "Set-Cookie: ";
-	cookie += "id=" + std::to_string(rand() % 100 + 1) + "; ";
+	cookie += "id=" + SSTR(rand() % 100 + 1) + "; ";
 	cookie += "Secure; HttpOnly;";
 	cookie += "\r\n";
 
@@ -99,13 +104,13 @@ void Response::handle(Request const & request, Server const * server, Config con
 
 				d = opendir(_target.c_str());
 				std::string uri = request.getUri();
-				if (uri[uri.length() - 1] == '/') uri.pop_back();
+				if (uri[uri.length() - 1] == '/') uri = uri.substr(0, uri.size() - 1);
 
 				if (d) {
 
 					std::string payload;
 
-					while ((dir = readdir(d)) != nullptr) {
+					while ((dir = readdir(d)) != NULL) {
 						payload += "<a href=\"";
 
 						if (dir->d_name[0] == '.' and dir->d_name[1] == 0) {
@@ -121,7 +126,7 @@ void Response::handle(Request const & request, Server const * server, Config con
 					std::cout << BYEL << "status 200 (directory listing)" << CRESET << std::endl;
 					_response += request.getVersion() + ' ' + OK + "\r\n";
 					_response += "Content-Length: ";
-					_response += std::to_string(payload.length()) + "\r\n";
+					_response += SSTR(payload.length()) + "\r\n";
 					_response += "Content-Type: text/html\r\n\r\n";
 					_response += payload;
 
@@ -154,7 +159,7 @@ void Response::handle(Request const & request, Server const * server, Config con
 						if (dup2(fd[1], STDOUT_FILENO) == -1) throw std::runtime_error("Error redirecting stdout [SON]");
 						if (close(fd[1]) == -1)               throw std::runtime_error("Error closing pipe fd[1] [SON]");
 
-						char *args[] = { (char *)server->cgi.at(extension).c_str(), (char *)_target.c_str(), nullptr };
+						char *args[] = { (char *)server->cgi.at(extension).c_str(), (char *)_target.c_str(), NULL };
 
 						if (execve( server->cgi.at(extension).c_str(), args, server->env ) == -1) {
 							throw std::runtime_error("Error execve");
@@ -188,7 +193,7 @@ void Response::handle(Request const & request, Server const * server, Config con
 
 						_response += request.getVersion() + ' ' + OK + "\r\n";
 						_response += "Content-Length: ";
-						_response += std::to_string(cgi_output.length()) + "\r\n";
+						_response += SSTR(cgi_output.length()) + "\r\n";
 						_response += "Content-Type: text/html\r\n\r\n";
 						_response += cgi_output;
 
@@ -210,7 +215,7 @@ void Response::handle(Request const & request, Server const * server, Config con
 				}
 
 				_response += "Content-Length: ";
-				_response += std::to_string(payload.length()) + "\r\n";
+				_response += SSTR(payload.length()) + "\r\n";
 
 				std::map<std::string, std::string> const & contentTypes = config.getContentTypes();
 				if (contentTypes.find(extension) != contentTypes.end()) {
@@ -245,7 +250,7 @@ void Response::handle(Request const & request, Server const * server, Config con
 				std::string filename = content.substr(content.find("filename=\"") + 10);
 				filename.erase(filename.find('"'));
 
-				std::ofstream upload(server->uploads.at(uri) + '/' + filename);
+				std::ofstream upload((server->uploads.at(uri) + '/' + filename).c_str());
 				upload << content.substr(content.find("\r\n\r\n") + 4);
 
 			} // ? Quand noah est en train de cook sérieusment, il ne faut pas le déranger
@@ -276,7 +281,7 @@ void Response::responseMaker(Server const * const server, std::string const & st
 	std::string payload  = (server->pages.find(statusCode) != server->pages.end()) ? readFile(server->pages.at(statusCode)) : statusHeader + "\r\n";
 
 	_response += std::string("HTTP/1.1 ") + statusHeader + "\r\n";
-	_response += std::string("Content-Length: ") + std::to_string(payload.length()) + "\r\n";
+	_response += std::string("Content-Length: ") + SSTR(payload.length()) + "\r\n";
 	_response += "Content-Type: text/html\r\n\r\n";
 	_response += payload;
 }
@@ -285,7 +290,7 @@ void Response::responseMaker(Server const * const server, std::string const & st
 	std::string payload  = (server->pages.find(statusCode) != server->pages.end()) ? readFile(server->pages.at(statusCode)) : statusHeader + "\r\n";
 
 	_response += std::string("HTTP/1.1 ") + statusHeader + "\r\n";
-	_response += std::string("Content-Length: ") + std::to_string(payload.length()) + "\r\n";
+	_response += std::string("Content-Length: ") + SSTR(payload.length()) + "\r\n";
 	_response += "Location: " + redirection + "\r\n";
 	_response += "Content-Type: text/html\r\n\r\n";
 	_response += payload;

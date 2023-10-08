@@ -3,6 +3,8 @@
 #include <fstream>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <utils/utils.hpp>
+#include <cstdlib>
 
 enum BLOCK_LVL {
 	BEGIN,
@@ -24,7 +26,7 @@ static int parseInt(std::string const & str) {
 	if (str.length() >= 6) return 0;
 	for (std::string::const_iterator it = str.begin(); it != str.end(); it++)
 		if ('0' > *it or *it > '9') return 0;
-	return std::stoi(str);
+	return atoi(str.c_str());
 }
 
 static bool isDir(std::string const & str) {
@@ -94,12 +96,12 @@ void Config::load(char const *ConfigFileName, char **env) {
 		}
 
 		char endl_char = line[line.length() - 1];
-		line.pop_back();
+		line = line.substr(0, line.size() - 1);
 
 		std::cout << line << " '" << endl_char << '\'' << std::endl;
 
 		if (endl_char != ';' and endl_char != '{' and (not line.empty() || endl_char != '}')) {
-			throw std::runtime_error(std::to_string(line_number) + ": Expected a ';' or '{' at end of rules");
+			throw std::runtime_error(SSTR(line_number) + ": Expected a ';' or '{' at end of rules");
 		}
 
 		std::string word;
@@ -109,112 +111,114 @@ void Config::load(char const *ConfigFileName, char **env) {
 
 			case BEGIN:
 				if (word == "http") {
-					if (getWord(line, word)) throw std::runtime_error(std::to_string(line_number) + ": Invalid line");
-					if (endl_char != '{') throw std::runtime_error(std::to_string(line_number) + ": 'http' rule must be a block");
+					if (getWord(line, word)) throw std::runtime_error(SSTR(line_number) + ": Invalid line");
+					if (endl_char != '{') throw std::runtime_error(SSTR(line_number) + ": 'http' rule must be a block");
 					blocklvl = HTTP_BLOCK;
-				} else throw std::runtime_error(std::to_string(line_number) + ": " + word + ": Unrecognized rule");
+				} else throw std::runtime_error(SSTR(line_number) + ": " + word + ": Unrecognized rule");
 				break;
 
 			case HTTP_BLOCK:
 				if (word.empty() and endl_char == '}') blocklvl = END;
 				else if (word == "server") {
-					if (getWord(line, word)) throw std::runtime_error(std::to_string(line_number) + ": Invalid line");
-					if (endl_char != '{') throw std::runtime_error(std::to_string(line_number) + ": 'server' rule must be a block");
+					if (getWord(line, word)) throw std::runtime_error(SSTR(line_number) + ": Invalid line");
+					if (endl_char != '{') throw std::runtime_error(SSTR(line_number) + ": 'server' rule must be a block");
 					server.uploads.clear(); server.pages.clear(); server.cgi.clear(); server.redirect.clear();
 					server.servername.clear(); server.locations.clear(); server.addresses.clear();
 					blocklvl = SERVER_BLOCK;
-				} else throw std::runtime_error(std::to_string(line_number) + ": " + word + ": Unrecognized http rule");
+				} else throw std::runtime_error(SSTR(line_number) + ": " + word + ": Unrecognized http rule");
 				break;
 
 			case SERVER_BLOCK:
 				if (word.empty() and endl_char == '}') {
-					if (server.addresses.size() == 0) throw std::runtime_error(std::to_string(line_number) + ": No port specified");
+					if (server.addresses.size() == 0) throw std::runtime_error(SSTR(line_number) + ": No port specified");
 					_servers.push_back(server);
 					blocklvl = HTTP_BLOCK;
 				} else if (word == "listen") {
-					if (endl_char == '{') throw std::runtime_error(std::to_string(line_number) + ": 'listen' mustn't be a block");
-					if (not getWord(line, word)) throw std::runtime_error(std::to_string(line_number) + ": Invalid line");
+					if (endl_char == '{') throw std::runtime_error(SSTR(line_number) + ": 'listen' mustn't be a block");
+					if (not getWord(line, word)) throw std::runtime_error(SSTR(line_number) + ": Invalid line");
 					do {
 						Address address;
 						address.port = parseInt(word);
-						if (address.port == -1) throw std::runtime_error(std::to_string(line_number) + ": invalid port");
-						address.address = (sockaddr_in) {.sin_family = AF_INET, .sin_port = htons(address.port), .sin_addr.s_addr = htonl(INADDR_ANY)};
+						if (address.port == -1) throw std::runtime_error(SSTR(line_number) + ": invalid port");
+						address.address.sin_family = AF_INET;
+						address.address.sin_port = htons(address.port);
+						address.address.sin_addr.s_addr = htonl(INADDR_ANY);
 						address.fd = socket(AF_INET, SOCK_STREAM, 0);
 						server.addresses.push_back(address);
 					} while (getWord(line, word));
 				} else if (word == "server_name") {
-					if (endl_char == '{') throw std::runtime_error(std::to_string(line_number) + ": 'server_name' mustn't be a block");
+					if (endl_char == '{') throw std::runtime_error(SSTR(line_number) + ": 'server_name' mustn't be a block");
 					line.erase(0, line.find_first_not_of(" \t"));
 					line.erase(line.find_last_not_of(" \t") + 1);
 					server.servername = line;
 				} else if (word == "location") {
-					if (endl_char != '{') throw std::runtime_error(std::to_string(line_number) + ": location must be a block");
-					if (not getWord(line, location.uri) or getWord(line, word)) throw std::runtime_error(std::to_string(line_number) + ": location require uri as argument");
+					if (endl_char != '{') throw std::runtime_error(SSTR(line_number) + ": location must be a block");
+					if (not getWord(line, location.uri) or getWord(line, word)) throw std::runtime_error(SSTR(line_number) + ": location require uri as argument");
 					location.directory_listing = true;
 					blocklvl = LOCATION_BLOCK;
 				} else if (word == "max_client_body_size") {
-					if (not getWord(line, word) or getWord(line, word)) throw std::runtime_error(std::to_string(line_number) + ": 'max_client_body_size' expect an argument");
-					if ((server.max_client_body_size = std::stol(word)) == 0) throw std::runtime_error(std::to_string(line_number) + ": Invalid size");
+					if (not getWord(line, word) or getWord(line, word)) throw std::runtime_error(SSTR(line_number) + ": 'max_client_body_size' expect an argument");
+					if ((server.max_client_body_size = atol(word.c_str())) == 0) throw std::runtime_error(SSTR(line_number) + ": Invalid size");
 				} else if (word == "cgi") {
-					if (not getWord(line, word)) throw std::runtime_error(std::to_string(line_number) + ": 'cgi' expect two arguments");
+					if (not getWord(line, word)) throw std::runtime_error(SSTR(line_number) + ": 'cgi' expect two arguments");
 					line.erase(0, line.find_first_not_of(" \t"));
 					line.erase(line.find_last_not_of(" \t") + 1);
-					if (not isFile(line) or not isExecutable(line)) throw std::runtime_error(std::to_string(line_number) + ": unable to execute (" + line + ")");
+					if (not isFile(line) or not isExecutable(line)) throw std::runtime_error(SSTR(line_number) + ": unable to execute (" + line + ")");
 					server.cgi[word] = line;
 				} else if (word == "upload") {
-					if (not getWord(line, word)) throw std::runtime_error(std::to_string(line_number) + ": 'upload' expect two arguments");
+					if (not getWord(line, word)) throw std::runtime_error(SSTR(line_number) + ": 'upload' expect two arguments");
 					line.erase(0, line.find_first_not_of(" \t"));
 					line.erase(line.find_last_not_of(" \t") + 1);
-					if (not isDir(line)) throw std::runtime_error(std::to_string(line_number) + ": unable to access directory (" + line + ")");
+					if (not isDir(line)) throw std::runtime_error(SSTR(line_number) + ": unable to access directory (" + line + ")");
 					server.uploads[word] = line;
 				} else if (word == "pages") {
-					if (not getWord(line, word)) throw std::runtime_error(std::to_string(line_number) + ": 'error' expect two arguments");
+					if (not getWord(line, word)) throw std::runtime_error(SSTR(line_number) + ": 'error' expect two arguments");
 					line.erase(0, line.find_first_not_of(" \t"));
 					line.erase(line.find_last_not_of(" \t") + 1);
-					if (not isFile(line)) throw std::runtime_error(std::to_string(line_number) + ": unable to access file (" + line + ")");
+					if (not isFile(line)) throw std::runtime_error(SSTR(line_number) + ": unable to access file (" + line + ")");
 					server.pages[word] = line;
 				} else if (word == "redirect") {
-					if (not getWord(line, word)) throw std::runtime_error(std::to_string(line_number) + ": 'redirect' expect two arguments");
+					if (not getWord(line, word)) throw std::runtime_error(SSTR(line_number) + ": 'redirect' expect two arguments");
 					line.erase(0, line.find_first_not_of(" \t"));
 					line.erase(line.find_last_not_of(" \t") + 1);
 					server.redirect[word] = line;
 					std::cout << word << ": " << server.redirect[word] << std::endl;
-				} else throw std::runtime_error(std::to_string(line_number) + ": " + word + ": Unrecognized server rule");
+				} else throw std::runtime_error(SSTR(line_number) + ": " + word + ": Unrecognized server rule");
 				break;
 
 			case LOCATION_BLOCK:
 				if (word.empty() and endl_char == '}') {
-					if (location.root.size() == 0) throw std::runtime_error(std::to_string(line_number) + ": No root specified");
-					if (location.indexes.size() == 0) throw std::runtime_error(std::to_string(line_number) + ": No index specified");
-					if (server.locations.find(location.uri) != server.locations.end()) throw std::runtime_error(std::to_string(line_number) + ": Duplicated location uri");
+					if (location.root.size() == 0) throw std::runtime_error(SSTR(line_number) + ": No root specified");
+					if (location.indexes.size() == 0) throw std::runtime_error(SSTR(line_number) + ": No index specified");
+					if (server.locations.find(location.uri) != server.locations.end()) throw std::runtime_error(SSTR(line_number) + ": Duplicated location uri");
 					server.locations[location.uri] = location;
 					location.indexes.clear();
 					location.methods.clear();
 					blocklvl = SERVER_BLOCK;
 				} else if (word == "root") {
-					if (endl_char == '{') throw std::runtime_error(std::to_string(line_number) + ": 'root' mustn't be a block");
+					if (endl_char == '{') throw std::runtime_error(SSTR(line_number) + ": 'root' mustn't be a block");
 					location.root = line.substr(line.find_first_not_of(" \t"));
-					if (location.root.length() == 0) throw std::runtime_error(std::to_string(line_number) + ": no root");
-					if (location.root[location.root.length() - 1] == '/') location.root.pop_back();
-					if (not isDir(location.root)) throw std::runtime_error(std::to_string(line_number) + ": Unable to found root (" + location.root + ')');
+					if (location.root.length() == 0) throw std::runtime_error(SSTR(line_number) + ": no root");
+					if (location.root[location.root.length() - 1] == '/') location.root = location.root.substr(0, location.root.size() - 1);
+					if (not isDir(location.root)) throw std::runtime_error(SSTR(line_number) + ": Unable to found root (" + location.root + ')');
 				} else if (word == "index") {
-					if (endl_char == '{') throw std::runtime_error(std::to_string(line_number) + ": 'index' mustn't be a block");
-					if (not getWord(line, word)) throw std::runtime_error(std::to_string(line_number) + ": Invalid line");
+					if (endl_char == '{') throw std::runtime_error(SSTR(line_number) + ": 'index' mustn't be a block");
+					if (not getWord(line, word)) throw std::runtime_error(SSTR(line_number) + ": Invalid line");
 					do { location.indexes.push_back(word); } while (getWord(line, word));
 				} else if (word == "methods") {
-					if (endl_char == '{') throw std::runtime_error(std::to_string(line_number) + ": 'methods' mustn't be a block");
-					if (not getWord(line, word)) throw std::runtime_error(std::to_string(line_number) + ": Invalid line");
+					if (endl_char == '{') throw std::runtime_error(SSTR(line_number) + ": 'methods' mustn't be a block");
+					if (not getWord(line, word)) throw std::runtime_error(SSTR(line_number) + ": Invalid line");
 					do { location.methods.push_back(word); } while (getWord(line, word));
 				} else if (word == "directory_listing") {
-					if (endl_char == '{') throw std::runtime_error(std::to_string(line_number) + ": 'directory listing' mustn't be a block");
-					if (not getWord(line, word) or getWord(line, word)) throw std::runtime_error(std::to_string(line_number) + ": invalid line");
-					if (word != "on" and word != "off") throw std::runtime_error(std::to_string(line_number) + ": 'directory_listing' argument must be 'on' or 'off'");
+					if (endl_char == '{') throw std::runtime_error(SSTR(line_number) + ": 'directory listing' mustn't be a block");
+					if (not getWord(line, word) or getWord(line, word)) throw std::runtime_error(SSTR(line_number) + ": invalid line");
+					if (word != "on" and word != "off") throw std::runtime_error(SSTR(line_number) + ": 'directory_listing' argument must be 'on' or 'off'");
 					location.directory_listing = (word == "on");
-				} else throw std::runtime_error(std::to_string(line_number) + ": " + word + ": Unrecognized location rule");
+				} else throw std::runtime_error(SSTR(line_number) + ": " + word + ": Unrecognized location rule");
 				break;
 
 			case END:
-				throw std::runtime_error(std::to_string(line_number) + ": off-block line");
+				throw std::runtime_error(SSTR(line_number) + ": off-block line");
 
 		}
 
