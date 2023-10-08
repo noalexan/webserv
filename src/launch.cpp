@@ -1,11 +1,189 @@
 #include <iostream>
 #include <Config/Config.hpp>
+#include <utils/utils.hpp>
+#include <utils/Colors.hpp>
+#include <Client.hpp>
+#include <unistd.h>
+#include <stdio.h>
 
 #ifdef __linux__
 
+#include <sys/select.h>
+
 void launch(Config const &config) {
-	(void) config;
-	std::cout << "salut" << std::endl;
+
+	std::vector<Server> const &servers = config.getServers();
+	std::map<int, Client> clients;
+
+	fd_set read_fds;
+	fd_set write_fds;
+	fd_set except_fds;
+
+	int max_fd = 0;
+
+	FD_ZERO(&read_fds);
+	FD_ZERO(&write_fds);
+	FD_ZERO(&except_fds);
+
+	for (std::vector<Server>::const_iterator server = servers.begin(); server != servers.end(); server++) {
+		for (std::vector<Address>::const_iterator address = server->addresses.begin(); address != server->addresses.end(); address++) {
+			FD_SET(address->fd, &read_fds);
+			if (address->fd > max_fd) {
+				max_fd = address->fd;
+			}
+		}
+	}
+
+	timeval   timeout;
+	socklen_t addrlen = sizeof(sockaddr_in);
+
+	while (true) {
+
+		fd_set tmp_read_fds = read_fds;
+		fd_set tmp_write_fds = write_fds;
+		fd_set tmp_except_fds = except_fds;
+
+		timeout.tv_sec = TIMEOUT_S;
+		timeout.tv_usec = 0;
+
+		int num_ready_fds = select(max_fd + 1, &tmp_read_fds, &tmp_write_fds, &tmp_except_fds, &timeout);
+		max_fd = 0;
+
+		if (num_ready_fds == -1) {
+			perror("socket");
+			std::cerr << "select() failed" << std::endl;
+			continue;
+		}
+
+		for (std::vector<Server>::const_iterator server = servers.begin(); server != servers.end(); server++) {
+			for (std::vector<Address>::const_iterator address = server->addresses.begin(); address != server->addresses.end(); address++) {
+
+				if (max_fd < address->fd) {
+					max_fd = address->fd;
+				}
+
+				if (FD_ISSET(address->fd, &tmp_read_fds)) {
+					// Handle read event for address->fd
+					// ...
+
+					int client_fd = accept(address->fd, (sockaddr *) &address->address, &addrlen);
+
+					Client client;
+
+					client.server = &*server;
+					client.request.setFd(client_fd);
+					client.response.setFd(client_fd);
+
+					clients[client_fd] = client;
+
+					FD_SET(client_fd, &read_fds);
+
+					std::cout << "server rfds" << std::endl;
+
+				}
+
+				if (FD_ISSET(address->fd, &tmp_write_fds)) {
+					// Handle write event for address->fd
+					// ...
+
+					std::cout << "server wfds" << std::endl;
+
+				}
+
+				if (FD_ISSET(address->fd, &tmp_except_fds)) {
+					// Handle exception event for address->fd
+					// ...
+
+					std::cout << "server efds" << std::endl;
+
+				}
+
+			}
+		}
+
+		for (std::map<int, Client>::iterator client = clients.begin(); client != clients.end(); client++) {
+
+			if (max_fd < client->first) {
+				max_fd = client->first;
+			}
+
+			if (FD_ISSET(client->first, &tmp_write_fds)) {
+				// Handle write event for client->first
+				// ...
+
+				client->second.response.write();
+
+				std::cout << "client wfds" << std::endl;
+
+			}
+
+			if (FD_ISSET(client->first, &tmp_except_fds)) {
+				// Handle exception event for client->first
+				// ...
+
+				std::cout << "client efds" << std::endl;
+
+			}
+
+			if (FD_ISSET(client->first, &tmp_read_fds)) {
+				// Handle read event for client->first
+				// ...
+
+				if (client->second.request.read(client->second.server->max_client_body_size) == 0) {
+					FD_CLR(client->first, &read_fds);
+					FD_CLR(client->first, &write_fds);
+					FD_CLR(client->first, &except_fds);
+					clients.erase(client);
+
+					std::cout << BMAG << "disconnect" << CRESET << std::endl;
+
+				}
+
+				else if (client->second.request.isFinished()) {
+					client->second.request.parse(client->second.server);
+					client->second.response.handle(client->second.request, client->second.server, config, false);
+				}
+
+				std::cout << "client rfds" << std::endl;
+
+			}
+
+		}
+
+		// Check for socket events
+		// for (int sockfd = 0; sockfd <= max_fd; sockfd++) {
+
+		// 	if (FD_ISSET(sockfd, &tmp_read_fds)) {
+		// 		// Handle read event for sockfd
+		// 		// ...
+
+		// 		std::cout << "rfds" << std::endl;
+
+		// 	}
+
+		// 	if (FD_ISSET(sockfd, &tmp_write_fds)) {
+		// 		// Handle write event for sockfd
+		// 		// ...
+
+		// 		std::cout << "wfds" << std::endl;
+
+		// 	}
+
+		// 	if (FD_ISSET(sockfd, &tmp_except_fds)) {
+		// 		// Handle exception event for sockfd
+		// 		// ...
+
+		// 		std::cout << "efds" << std::endl;
+
+		// 	}
+
+		// }
+
+		// Handle other tasks and cleanup
+		// ...
+
+	}
+
 }
 
 #else

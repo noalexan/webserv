@@ -5,15 +5,12 @@
 #include <fcntl.h>
 
 #include <Config/Config.hpp>
-#include <Client.hpp>
 
 #include <utils/ExitCode.hpp>
 #include <utils/Colors.hpp>
+#include <utils/utils.hpp>
 
 #include <signal.h>
-
-#define MAX_EVENTS 1024
-#define TIMEOUT_S 2
 
 void launch(Config const &config);
 
