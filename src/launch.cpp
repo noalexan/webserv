@@ -9,6 +9,9 @@
 #ifdef __linux__
 
 #include <sys/select.h>
+#include <fcntl.h>
+
+#define MAX(a,b) a < b ? b : a
 
 void launch(Config const &config) {
 
@@ -27,72 +30,75 @@ void launch(Config const &config) {
 
 	for (std::vector<Server>::const_iterator server = servers.begin(); server != servers.end(); server++) {
 		for (std::vector<Address>::const_iterator address = server->addresses.begin(); address != server->addresses.end(); address++) {
+
 			FD_SET(address->fd, &read_fds);
+			FD_SET(address->fd, &write_fds);
+			FD_SET(address->fd, &except_fds);
+
 			if (address->fd > max_fd) {
 				max_fd = address->fd;
 			}
+
 		}
 	}
 
-	timeval   timeout;
 	socklen_t addrlen = sizeof(sockaddr_in);
 
 	while (true) {
 
-		fd_set tmp_read_fds = read_fds;
-		fd_set tmp_write_fds = write_fds;
+		fd_set tmp_read_fds   = read_fds;
+		fd_set tmp_write_fds  = write_fds;
 		fd_set tmp_except_fds = except_fds;
 
-		timeout.tv_sec = TIMEOUT_S;
-		timeout.tv_usec = 0;
-
-		int num_ready_fds = select(max_fd + 1, &tmp_read_fds, &tmp_write_fds, &tmp_except_fds, &timeout);
-		max_fd = 0;
-
-		if (num_ready_fds == -1) {
-			perror("socket");
+		if (select(max_fd + 1, &tmp_read_fds, &tmp_write_fds, &tmp_except_fds, NULL) == -1) {
+			perror("select");
 			std::cerr << "select() failed" << std::endl;
+			throw std::runtime_error("debug exit");
 			continue;
 		}
+
+		max_fd = 0;
 
 		for (std::vector<Server>::const_iterator server = servers.begin(); server != servers.end(); server++) {
 			for (std::vector<Address>::const_iterator address = server->addresses.begin(); address != server->addresses.end(); address++) {
 
-				if (max_fd < address->fd) {
-					max_fd = address->fd;
-				}
+				max_fd = MAX(address->fd, max_fd);
 
 				if (FD_ISSET(address->fd, &tmp_read_fds)) {
-					// Handle read event for address->fd
-					// ...
 
 					int client_fd = accept(address->fd, (sockaddr *) &address->address, &addrlen);
+
+					if (client_fd == -1) {
+						perror("accept");
+						std::cerr << "accept() failed" << std::endl;
+						throw std::runtime_error("debug exit");
+						continue;
+					}
+
+					fcntl(client_fd, F_SETFL, O_NONBLOCK, FD_CLOEXEC);
 
 					Client client;
 
 					client.server = &*server;
 					client.request.setFd(client_fd);
 					client.response.setFd(client_fd);
+					client.timestamp = time(NULL);
 
 					clients[client_fd] = client;
 
 					FD_SET(client_fd, &read_fds);
 
-					std::cout << "server rfds" << std::endl;
+					std::cout << "new client (" << client_fd << ")" << std::endl;
 
 				}
 
-				if (FD_ISSET(address->fd, &tmp_write_fds)) {
-					// Handle write event for address->fd
-					// ...
+				else if (FD_ISSET(address->fd, &tmp_write_fds)) {
 
 					std::cout << "server wfds" << std::endl;
 
 				}
 
-				if (FD_ISSET(address->fd, &tmp_except_fds)) {
-					// Handle exception event for address->fd
-					// ...
+				else if (FD_ISSET(address->fd, &tmp_except_fds)) {
 
 					std::cout << "server efds" << std::endl;
 
@@ -101,88 +107,86 @@ void launch(Config const &config) {
 			}
 		}
 
-		for (std::map<int, Client>::iterator client = clients.begin(); client != clients.end(); client++) {
+		for (std::map<int, Client>::const_iterator client = clients.begin(); client != clients.end(); client++) { // t'as une canette à l'horizontale
+			max_fd = MAX(client->first, max_fd);
+		}
 
-			if (max_fd < client->first) {
-				max_fd = client->first;
+		for (int client_fd = 0; client_fd <= max_fd; client_fd++) {
+
+			if (clients.find(client_fd) == clients.end()) {
+				continue;
 			}
 
-			if (FD_ISSET(client->first, &tmp_write_fds)) {
-				// Handle write event for client->first
-				// ...
+			Client & client = clients.at(client_fd);
+			max_fd = MAX(client_fd, max_fd);
 
-				client->second.response.write();
+			try {
 
-				std::cout << "client wfds" << std::endl;
+				if (FD_ISSET(client_fd, &tmp_read_fds)) {
 
-			}
+					if (difftime(time(NULL), client.timestamp) >= TIMEOUT_S) {
+						client.response.handle(client.request, client.server, config, true);
+						FD_CLR(client_fd, &read_fds);
+						FD_SET(client_fd, &write_fds);
 
-			if (FD_ISSET(client->first, &tmp_except_fds)) {
-				// Handle exception event for client->first
-				// ...
+						std::cout << BMAG << "client timed out" << CRESET << std::endl;
+					} else if (client.request.read(client.server->max_client_body_size) == 0) { // EOF
 
-				std::cout << "client efds" << std::endl;
+						FD_CLR(client_fd, &read_fds);
 
-			}
+						if (close(client_fd) == -1) throw std::runtime_error("close() failed");
+						clients.erase(client_fd);
 
-			if (FD_ISSET(client->first, &tmp_read_fds)) {
-				// Handle read event for client->first
-				// ...
+						std::cout << BMAG << "disconnect (" << client_fd << ")" << CRESET << std::endl;
 
-				if (client->second.request.read(client->second.server->max_client_body_size) == 0) {
-					FD_CLR(client->first, &read_fds);
-					FD_CLR(client->first, &write_fds);
-					FD_CLR(client->first, &except_fds);
-					clients.erase(client);
+					}
 
-					std::cout << BMAG << "disconnect" << CRESET << std::endl;
+					else if (client.request.isFinished()) {
+
+						if (client.request.isTooLarge()) {
+							std::cout << BYEL << "status 413" << CRESET << std::endl;
+							client.response.responseMaker(client.server, "413", PAYLOAD_TOO_LARGE);
+						} else {
+							client.request.parse(client.server);
+							client.response.handle(client.request, client.server, config, false);
+						}
+
+						FD_CLR(client_fd, &read_fds);
+						FD_SET(client_fd, &write_fds);
+					}
 
 				}
 
-				else if (client->second.request.isFinished()) {
-					client->second.request.parse(client->second.server);
-					client->second.response.handle(client->second.request, client->second.server, config, false);
+				else if (FD_ISSET(client_fd, &tmp_write_fds)) {
+
+					client.response.write();
+
+					if (client.response.isFinished()) {
+
+						FD_CLR(client_fd, &write_fds);
+
+						if (close(client_fd) == -1) throw std::runtime_error("close() failed");
+						clients.erase(client_fd);
+
+						std::cout << BMAG << "connection closed (" << client_fd << ")" << CRESET << std::endl;
+
+					}
+
 				}
 
-				std::cout << "client rfds" << std::endl;
-
+			} catch (std::exception const & e) {
+				std::cout << "client deleted" << std::endl;
+				close(client_fd);
+				FD_CLR(client_fd, &read_fds);
+				if (FD_ISSET(client_fd, &write_fds)) FD_CLR(client_fd, &write_fds);
+				clients.erase(client_fd);
+				std::cerr << e.what() << std::endl;
 			}
 
 		}
 
-		// Check for socket events
-		// for (int sockfd = 0; sockfd <= max_fd; sockfd++) {
-
-		// 	if (FD_ISSET(sockfd, &tmp_read_fds)) {
-		// 		// Handle read event for sockfd
-		// 		// ...
-
-		// 		std::cout << "rfds" << std::endl;
-
-		// 	}
-
-		// 	if (FD_ISSET(sockfd, &tmp_write_fds)) {
-		// 		// Handle write event for sockfd
-		// 		// ...
-
-		// 		std::cout << "wfds" << std::endl;
-
-		// 	}
-
-		// 	if (FD_ISSET(sockfd, &tmp_except_fds)) {
-		// 		// Handle exception event for sockfd
-		// 		// ...
-
-		// 		std::cout << "efds" << std::endl;
-
-		// 	}
-
-		// }
-
-		// Handle other tasks and cleanup
-		// ...
-
 	}
+
 
 }
 

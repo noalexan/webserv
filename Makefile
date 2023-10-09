@@ -1,4 +1,4 @@
-CC=g++
+CC=c++
 CXXFLAGS=-Werror -Wextra -Wall -std=c++98 -Isrc -O3
 
 NAME=webserv

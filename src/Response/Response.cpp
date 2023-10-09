@@ -51,7 +51,7 @@ static std::string const bakeryCookies() {
 
 	cookie += "Set-Cookie: ";
 	cookie += "id=" + SSTR(rand() % 100 + 1) + "; ";
-	cookie += "Secure; HttpOnly;";
+	cookie += "HttpOnly;";
 	cookie += "\r\n";
 
 	return cookie;
@@ -298,7 +298,10 @@ void Response::responseMaker(Server const * const server, std::string const & st
 
 void Response::write() {
 	ssize_t bytes_sent = send(_fd, _response.c_str(), ((BUFFER_SIZE <= _response.length()) ? BUFFER_SIZE : (_response.length() % BUFFER_SIZE)), 0);
-	if (bytes_sent == -1) throw std::runtime_error("send() failed");
+	if (bytes_sent == -1) {
+		perror("send");
+		throw std::runtime_error("send() failed");
+	}
 	_response.erase(0, bytes_sent);
 	if (_response.empty()) _finished = true;
 	// std::cout << BHBLU << bytes_sent << " bytes sent" << std::endl;
