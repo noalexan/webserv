@@ -148,9 +148,9 @@ void Response::handle(Request const & request, Server const * server, Config con
 				std::cout << UCYN << "CGI " << extension << " ---> " << server->cgi.at(extension) << CRESET << std::endl;
 
 				int	fd[2];
-				int pid = fork();
-
 				if (pipe(fd) < 0) throw std::runtime_error("Error pipe()");
+
+				int pid = fork();
 				if (pid == 0) {
 
 					try {
