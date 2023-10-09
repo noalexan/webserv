@@ -6,6 +6,13 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <fcntl.h>
+#include <signal.h>
+
+bool running = true;
+
+void stop(int) {
+	running = false;
+}
 
 #ifdef __linux__
 
@@ -14,6 +21,8 @@
 #define MAX(a,b) a < b ? b : a
 
 void launch(Config const &config) {
+
+	signal(SIGINT, stop);
 
 	std::vector<Server> const &servers = config.getServers();
 	std::map<int, Client> clients;
@@ -44,7 +53,7 @@ void launch(Config const &config) {
 
 	socklen_t addrlen = sizeof(sockaddr_in);
 
-	while (true) {
+	while (running) {
 
 		fd_set tmp_read_fds   = read_fds;
 		fd_set tmp_write_fds  = write_fds;
@@ -53,7 +62,6 @@ void launch(Config const &config) {
 		if (select(max_fd + 1, &tmp_read_fds, &tmp_write_fds, &tmp_except_fds, NULL) == -1) {
 			perror("select");
 			std::cerr << "select() failed" << std::endl;
-			throw std::runtime_error("debug exit");
 			continue;
 		}
 
@@ -187,6 +195,10 @@ void launch(Config const &config) {
 
 	}
 
+	for (std::map<int, Client>::const_iterator client = clients.begin(); client != clients.end(); client++) {
+		std::cout << BMAG << "connection closed (" << client->first << ")" << CRESET << std::endl;
+		close(client->first);
+	}
 
 }
 
@@ -195,6 +207,8 @@ void launch(Config const &config) {
 #include <sys/event.h>
 
 void launch(Config const &config) {
+
+	signal(SIGINT, stop);
 
 	int kq = kqueue();
 
@@ -219,7 +233,7 @@ void launch(Config const &config) {
 	timespec timeout;
 	int nev;
 
-	while (true) {
+	while (running) {
 
 		timeout.tv_sec = 5;
 		timeout.tv_nsec = 0;
@@ -387,11 +401,26 @@ void launch(Config const &config) {
 				}
 
 			} catch (std::exception &e) {
+				std::cout << "client deleted" << std::endl;
+				close(events[i].ident);
+
+				timeout.tv_sec = 5;
+				timeout.tv_nsec = 0;
+
+				EV_SET(&changes, events[i].ident, events[i].filter, EV_DELETE, 0, 0, NULL);
+				if (kevent(kq, &changes, 1, NULL, 0, &timeout) == -1) throw std::runtime_error("kevent() failed");
+
+				clients.erase(events[i].ident);
 				std::cerr << e.what() << std::endl;
 			}
 
 		}
 
+	}
+
+	for (std::map<int, Client>::const_iterator client = clients.begin(); client != clients.end(); client++) {
+		std::cout << BMAG << "connection closed (" << client->first << ")" << CRESET << std::endl;
+		close(client->first);
 	}
 
 }
