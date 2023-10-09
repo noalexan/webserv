@@ -5,11 +5,11 @@
 #include <Client.hpp>
 #include <unistd.h>
 #include <stdio.h>
+#include <fcntl.h>
 
 #ifdef __linux__
 
 #include <sys/select.h>
-#include <fcntl.h>
 
 #define MAX(a,b) a < b ? b : a
 
@@ -191,6 +191,8 @@ void launch(Config const &config) {
 }
 
 #else
+
+#include <sys/event.h>
 
 void launch(Config const &config) {
 
