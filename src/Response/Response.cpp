@@ -146,63 +146,8 @@ void Response::handle(Request const & request, Server const * server, Config con
 			if (isCGI(extension, server->cgi) and _target[_target.length() - 1] != '/') {
 
 				std::cout << UCYN << "CGI " << extension << " ---> " << server->cgi.at(extension) << CRESET << std::endl;
+				CGIMaker(server, extension, _target, OK);
 
-				int	fd[2];
-				if (pipe(fd) < 0) throw std::runtime_error("Error pipe()");
-
-				int pid = fork();
-				if (pid == 0) {
-
-					try {
-
-						if (close(fd[0]) == -1)               throw std::runtime_error("Error closing pipe fd[0] [SON]");
-						if (dup2(fd[1], STDOUT_FILENO) == -1) throw std::runtime_error("Error redirecting stdout [SON]");
-						if (close(fd[1]) == -1)               throw std::runtime_error("Error closing pipe fd[1] [SON]");
-
-						char *args[] = { (char *)server->cgi.at(extension).c_str(), (char *)_target.c_str(), NULL };
-
-						if (execve( server->cgi.at(extension).c_str(), args, server->env ) == -1) {
-							throw std::runtime_error("Error execve");
-						}
-
-					} catch (std::exception & e) {
-						std::cerr << e.what() << std::endl;
-						exit(EXIT_FAILURE);
-					}
-
-				} else {
-
-					if (close(fd[1]) == -1) throw std::runtime_error("Error closing pipe fd[1] [PARENT]");
-
-					char buffer[BUFFER_SIZE];
-					ssize_t bytes_read;
-					std::string cgi_output;
-
-					while ((bytes_read = read(fd[0], buffer, BUFFER_SIZE)) > 0) {
-						cgi_output.append(buffer, bytes_read);
-					}
-
-					if (close(fd[0]) == -1) throw std::runtime_error("Error closing pipe fd[0] [PARENT]");
-
-					int status;
-
-					waitpid(pid, &status, 0);
-					if (WIFEXITED(status) and WEXITSTATUS(status) == 0) {
-
-						std::cout << BYEL << "status 200 (cgi)" << CRESET << std::endl;
-
-						_response += request.getVersion() + ' ' + OK + "\r\n";
-						_response += "Content-Length: ";
-						_response += SSTR(cgi_output.length()) + "\r\n";
-						_response += "Content-Type: text/html\r\n\r\n";
-						_response += cgi_output;
-
-					} else {
-						std::cout << BYEL << "status 500 (" << _target << ')' << CRESET << std::endl;
-						responseMaker(server, "500", INTERNAL_ERROR);
-					}
-
-				}
 			} else {
 
 				std::cout << BYEL << "status 200 (" << _target << ')' << CRESET << std::endl;
@@ -258,6 +203,14 @@ void Response::handle(Request const & request, Server const * server, Config con
 			responseMaker(server, "201", CREATED);
 		}
 
+	// it's criminal
+	} else if (request.getMethod() == "POST"
+		&& isCGI((request.getTarget().substr(request.getTarget().find_last_of('/'))).substr(((request.getTarget().substr(request.getTarget().find_last_of('/')))).find_last_of('.') + 1), server->cgi)
+		&& request.getTarget()[request.getTarget().length() - 1] != '/') {
+
+		CGIMaker(server, (request.getTarget().substr(request.getTarget().find_last_of('/'))).substr(((request.getTarget().substr(request.getTarget().find_last_of('/')))).find_last_of('.') + 1), request.getTarget(), ACCEPTED);
+	// it's criminal, but necessary
+
 	} else if (request.getMethod() == "DELETE" && server->uploads.find(uri.substr(0, uri.find_last_of('/'))) != server->uploads.end()) {
 		std::string target = server->uploads.at(uri.substr(0, uri.find_last_of('/'))) + uri.substr(uri.find_last_of('/'), uri.length()); 
 		std::string folder = uri.substr(0, uri.find_last_of('/'));
@@ -294,6 +247,66 @@ void Response::responseMaker(Server const * const server, std::string const & st
 	_response += "Location: " + redirection + "\r\n";
 	_response += "Content-Type: text/html\r\n\r\n";
 	_response += payload;
+}
+
+void Response::CGIMaker(Server const * server, std::string const & extension, std::string const & target, std::string const & statusHeader) {
+
+	int	fd[2];
+	if (pipe(fd) < 0) throw std::runtime_error("Error pipe()");
+
+	int pid = fork();
+	if (pid == 0) {
+
+		try {
+
+			if (close(fd[0]) == -1)               throw std::runtime_error("Error closing pipe fd[0] [SON]");
+			if (dup2(fd[1], STDOUT_FILENO) == -1) throw std::runtime_error("Error redirecting stdout [SON]");
+			if (close(fd[1]) == -1)               throw std::runtime_error("Error closing pipe fd[1] [SON]");
+
+			char *args[] = { (char *)server->cgi.at(extension).c_str(), (char *)target.c_str(), NULL };
+
+			if (execve( server->cgi.at(extension).c_str(), args, server->env ) == -1) {
+				throw std::runtime_error("Error execve");
+			}
+
+		} catch (std::exception & e) {
+			std::cerr << e.what() << std::endl;
+			exit(EXIT_FAILURE);
+		}
+
+	} else {
+
+		if (close(fd[1]) == -1) throw std::runtime_error("Error closing pipe fd[1] [PARENT]");
+
+		char buffer[BUFFER_SIZE];
+		ssize_t bytes_read;
+		std::string cgi_output;
+
+		while ((bytes_read = read(fd[0], buffer, BUFFER_SIZE)) > 0) {
+			cgi_output.append(buffer, bytes_read);
+		}
+
+		if (close(fd[0]) == -1) throw std::runtime_error("Error closing pipe fd[0] [PARENT]");
+
+		int status;
+
+		waitpid(pid, &status, 0);
+		if (WIFEXITED(status) and WEXITSTATUS(status) == 0) {
+
+		std::cout << BYEL << "status " << statusHeader.substr(0, 3) << " (cgi)" << CRESET << std::endl;
+
+		_response += std::string("HTTP/1.1 ") + statusHeader + "\r\n";
+		_response += "Content-Length: ";
+		_response += SSTR(cgi_output.length()) + "\r\n";
+		_response += "Content-Type: text/html\r\n\r\n";
+		_response += cgi_output;
+
+	} else {
+		std::cout << BYEL << "status 500 (" << target << ')' << CRESET << std::endl;
+		responseMaker(server, "500", INTERNAL_ERROR);
+	}
+
+	}
 }
 
 void Response::write() {

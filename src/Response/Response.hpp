@@ -55,6 +55,7 @@ class Response {
 
 		void responseMaker(Server const * const server, std::string const & statusCode, std::string const & statusHeader);
 		void responseMaker(Server const * const server, std::string const & statusCode, std::string const & statusHeader, std::string const & redirection);
+		void CGIMaker(Server const * server, std::string const & extension, std::string const & target, std::string const & statusHeader);
 
 };
 
