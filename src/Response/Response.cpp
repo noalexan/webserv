@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <signal.h>
 
 #include <sys/socket.h>
 #include <sys/stat.h>
@@ -265,6 +266,7 @@ void Response::CGIMaker(Server const * server, std::string const & extension, st
 
 			char *args[] = { (char *)server->cgi.at(extension).c_str(), (char *)target.c_str(), NULL };
 
+			alarm(5);
 			if (execve( server->cgi.at(extension).c_str(), args, server->env ) == -1) {
 				throw std::runtime_error("Error execve");
 			}
@@ -293,18 +295,23 @@ void Response::CGIMaker(Server const * server, std::string const & extension, st
 		waitpid(pid, &status, 0);
 		if (WIFEXITED(status) and WEXITSTATUS(status) == 0) {
 
-		std::cout << BYEL << "status " << statusHeader.substr(0, 3) << " (cgi)" << CRESET << std::endl;
+			std::cout << BYEL << "status " << statusHeader.substr(0, 3) << " (cgi)" << CRESET << std::endl;
 
-		_response += std::string("HTTP/1.1 ") + statusHeader + "\r\n";
-		_response += "Content-Length: ";
-		_response += SSTR(cgi_output.length()) + "\r\n";
-		_response += "Content-Type: text/html\r\n\r\n";
-		_response += cgi_output;
+			_response += std::string("HTTP/1.1 ") + statusHeader + "\r\n";
+			_response += "Content-Length: ";
+			_response += SSTR(cgi_output.length()) + "\r\n";
+			_response += "Content-Type: text/html\r\n\r\n";
+			_response += cgi_output;
 
-	} else {
-		std::cout << BYEL << "status 500 (" << target << ')' << CRESET << std::endl;
-		responseMaker(server, "500", INTERNAL_ERROR);
-	}
+		} else if (WIFSIGNALED(status) && WTERMSIG(status) == SIGALRM) {
+			kill(pid, SIGKILL);
+			std::cout << BYEL << "status 504 (" << target << ')' << CRESET << std::endl;
+			responseMaker(server, "504", GATEWAY_TIMEOUT);
+
+		} else {
+			std::cout << BYEL << "status 500 (" << target << ')' << CRESET << std::endl;
+			responseMaker(server, "500", INTERNAL_ERROR);
+		}
 
 	}
 }
