@@ -126,4 +126,4 @@ int main(int argc, char ** argv, char **env) {
 }
 
 // Authors : Marwan Ayoub, Noah Alexandre
-// Version : 1.0.0
+// Version : 1.2.0
