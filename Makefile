@@ -1,4 +1,4 @@
-CC=c++
+CXX=c++
 CXXFLAGS=-Werror -Wextra -Wall -std=c++98 -Isrc -O3
 
 NAME=webserv
@@ -9,7 +9,7 @@ OBJ=$(SRC:.cpp=.o)
 all: $(NAME)
 
 $(NAME): $(OBJ)
-	$(CC) $(CXXFLAGS) -o $@ $^
+	$(CXX) $(CXXFLAGS) -o $@ $^
 
 clean:
 	rm -f $(OBJ)

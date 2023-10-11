@@ -60,7 +60,6 @@ void launch(Config const &config) {
 		fd_set tmp_except_fds = except_fds;
 
 		if (select(max_fd + 1, &tmp_read_fds, &tmp_write_fds, &tmp_except_fds, NULL) == -1) {
-			perror("select");
 			std::cerr << "select() failed" << std::endl;
 			continue;
 		}
@@ -77,9 +76,7 @@ void launch(Config const &config) {
 					int client_fd = accept(address->fd, (sockaddr *) &address->address, &addrlen);
 
 					if (client_fd == -1) {
-						perror("accept");
 						std::cerr << "accept() failed" << std::endl;
-						throw std::runtime_error("debug exit");
 						continue;
 					}
 

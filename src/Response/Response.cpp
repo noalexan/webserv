@@ -319,7 +319,6 @@ void Response::CGIMaker(Server const * server, std::string const & extension, st
 void Response::write() {
 	ssize_t bytes_sent = send(_fd, _response.c_str(), ((BUFFER_SIZE <= _response.length()) ? BUFFER_SIZE : (_response.length() % BUFFER_SIZE)), 0);
 	if (bytes_sent == -1) {
-		perror("send");
 		throw std::runtime_error("send() failed");
 	}
 	_response.erase(0, bytes_sent);
