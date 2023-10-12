@@ -26,9 +26,9 @@ class Request {
 	public:
 		Request();
 
-		void setFd(int const & fd);
-		void read(size_t const & max_body_size);
-		void parse(Server const * const);
+		void   setFd(int const & fd);
+		size_t read(size_t const & max_body_size);
+		void   parse(Server const * const);
 
 		bool const & isFinished() const { return _finished; }
 		bool const & isTooLarge() const { return _payload_too_large; }

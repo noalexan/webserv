@@ -4,6 +4,7 @@
 #include <sstream>
 #include <unistd.h>
 #include <utils/Colors.hpp>
+#include <cstdlib>
 
 #define BUFFER_SIZE 10240
 
@@ -11,7 +12,7 @@ Request::Request(): _finished(false), _payload_too_large(false) {}
 
 void Request::setFd(int const & fd) { _fd = fd; }
 
-void Request::read(size_t const & max_body_size)  {
+size_t Request::read(size_t const & max_body_size)  {
 
 	char buffer[BUFFER_SIZE];
 	ssize_t bytes_read;
@@ -33,7 +34,7 @@ void Request::read(size_t const & max_body_size)  {
 			std::string sContentLength = _request.substr(contentLengthPos);
 			sContentLength.erase(sContentLength.find("\r\n"));
 			sContentLength = sContentLength.substr(sContentLength.find(": ") + 2);
-			size_t contentLenght = std::stoul(sContentLength);
+			size_t contentLenght = atol(sContentLength.c_str());
 			if (contentLenght > max_body_size) {
 				_payload_too_large = true;
 				_finished = true;
@@ -49,6 +50,8 @@ void Request::read(size_t const & max_body_size)  {
 	}
 
 	// std::cout << BHBLU << bytes_read << " bytes read" << std::endl;
+
+	return bytes_read;
 
 }
 
@@ -81,7 +84,7 @@ void Request::parse(Server const * server) {
 
 		std::string key = line.substr(0, line.find_first_of(':'));
 		std::string value = line.substr(line.find_first_of(':') + 2, line.length());
-		value.pop_back();
+		value = value.substr(0, value.size() - 1);
 		_headers[key] = value;
 
 	}
