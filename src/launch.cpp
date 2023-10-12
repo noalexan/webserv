@@ -52,6 +52,7 @@ void launch(Config const &config) {
 	}
 
 	socklen_t addrlen = sizeof(sockaddr_in);
+	timeval tv;
 
 	while (running) {
 
@@ -59,7 +60,10 @@ void launch(Config const &config) {
 		fd_set tmp_write_fds  = write_fds;
 		fd_set tmp_except_fds = except_fds;
 
-		if (select(max_fd + 1, &tmp_read_fds, &tmp_write_fds, &tmp_except_fds, NULL) == -1) {
+		tv.tv_sec = 0;
+		tv.tv_usec = 0;
+
+		if (select(max_fd + 1, &tmp_read_fds, &tmp_write_fds, &tmp_except_fds, &tv) == -1) {
 			std::cerr << "select() failed" << std::endl;
 			continue;
 		}
@@ -127,15 +131,15 @@ void launch(Config const &config) {
 
 			try {
 
-				if (FD_ISSET(client_fd, &tmp_read_fds)) {
+				if (FD_ISSET(client_fd, &read_fds) && difftime(time(NULL), client.timestamp) >= TIMEOUT_S) {
+					client.response.handle(client.request, client.server, config, true);
+					FD_CLR(client_fd, &read_fds);
+					FD_SET(client_fd, &write_fds);
 
-					if (difftime(time(NULL), client.timestamp) >= TIMEOUT_S) {
-						client.response.handle(client.request, client.server, config, true);
-						FD_CLR(client_fd, &read_fds);
-						FD_SET(client_fd, &write_fds);
+					std::cout << BMAG << "client timed out" << CRESET << std::endl;
+				} else if (FD_ISSET(client_fd, &tmp_read_fds)) {
 
-						std::cout << BMAG << "client timed out" << CRESET << std::endl;
-					} else if (client.request.read(client.server->max_client_body_size) == 0) { // EOF
+					if (client.request.read(client.server->max_client_body_size) == 0) { // EOF
 
 						FD_CLR(client_fd, &read_fds);
 
