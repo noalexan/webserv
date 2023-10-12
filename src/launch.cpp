@@ -156,8 +156,14 @@ void launch(Config const &config) {
 							std::cout << BYEL << "status 413" << CRESET << std::endl;
 							client.response.responseMaker(client.server, "413", PAYLOAD_TOO_LARGE);
 						} else {
-							client.request.parse(client.server);
-							client.response.handle(client.request, client.server, config, false);
+							try {
+								client.request.parse(client.server);
+								client.response.handle(client.request, client.server, config, false);
+							} catch (std::exception const &e) {
+								std::cerr << e.what() << std::endl;
+								std::cout << BYEL << "status 400" << CRESET << std::endl;
+								client.response.responseMaker(client.server, "400", BAD_REQUEST);
+							}
 						}
 
 						FD_CLR(client_fd, &read_fds);

@@ -64,6 +64,10 @@ void Request::parse(Server const * server) {
 
 	_method = line.substr(0, line.find(' '));
 
+	if (_method.length() == 0) {
+		throw std::runtime_error("no method");
+	}
+
 	line.erase(0, line.find(' '));
 	line.erase(0, line.find_first_not_of(' '));
 
@@ -73,10 +77,26 @@ void Request::parse(Server const * server) {
 		_uri.replace(_uri.find("%20"), 3, " ");
 	}
 
+	if (_uri.length() == 0) {
+		throw std::runtime_error("no uri");
+	}
+
+	if (_uri[0] != '/') {
+		throw std::runtime_error("invalid request");
+	}
+
 	line.erase(0, line.find(' '));
 	line.erase(0, line.find_first_not_of(' '));
 
 	_version = line.substr(0, line.find_first_of("\r\n"));
+
+	if (_version.length() == 0) {
+		throw std::runtime_error("no version");
+	}
+
+	if (_version != "HTTP/1.1") {
+		throw std::runtime_error("unhandled HTTP version");
+	}
 
 	while (std::getline(iss, line)) {
 
