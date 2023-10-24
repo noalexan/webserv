@@ -98,7 +98,7 @@ void Config::load(char const *ConfigFileName, char **env) {
 		char endl_char = line[line.length() - 1];
 		line = line.substr(0, line.size() - 1);
 
-		std::cout << line << " '" << endl_char << '\'' << std::endl;
+		// std::cout << line << " '" << endl_char << '\'' << std::endl;
 
 		if (endl_char != ';' and endl_char != '{' and (not line.empty() || endl_char != '}')) {
 			throw std::runtime_error(SSTR(line_number) + ": Expected a ';' or '{' at end of rules");
@@ -187,7 +187,7 @@ void Config::load(char const *ConfigFileName, char **env) {
 					line.erase(line.find_last_not_of(" \t") + 1);
 					if (server.redirect.find(word) != server.redirect.end()) throw std::runtime_error(SSTR(line_number) + ": conflict with redirect");
 					server.redirect[word] = line;
-					std::cout << word << ": " << server.redirect[word] << std::endl;
+					// std::cout << word << ": " << server.redirect[word] << std::endl;
 				} else throw std::runtime_error(SSTR(line_number) + ": " + word + ": Unrecognized server rule");
 				break;
 

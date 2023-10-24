@@ -67,15 +67,15 @@ void Response::handle(Request const & request, Server const * server, Config con
 	std::string const & uri = request.getUri();
 
 	if (timeout) {
-		std::cout << BYEL << "status 408" << CRESET << std::endl;
+		std::cout << timestamp() << BYEL << "status 408" << CRESET << std::endl;
 		responseMaker(server, "408", REQUEST_TIMEOUT);
 
 	} else if (server->redirect.find(uri) != server->redirect.end()) {
-		std::cout << BYEL << "status 301 (" << request.getMethod() << ')' << CRESET << std::endl;
+		std::cout << timestamp() << BYEL << "status 301 (" << request.getMethod() << ')' << CRESET << std::endl;
 		responseMaker(server, "301", MOVED, server->redirect.at(uri));
 
 	} else if (request.getLocation() && std::find(request.getLocation()->methods.begin(), request.getLocation()->methods.end(), request.getMethod()) == request.getLocation()->methods.end() && (request.getMethod() != "POST" || server->uploads.find(uri) == server->uploads.end())) {
-		std::cout << BYEL << "status 405 (" << request.getMethod() << ')' << CRESET << std::endl;
+		std::cout << timestamp() << BYEL << "status 405 (" << request.getMethod() << ')' << CRESET << std::endl;
 		responseMaker(server, "405", METHOD_NOT_ALLOWED);
 
 	} else if (request.getMethod() == "GET") {
@@ -94,7 +94,7 @@ void Response::handle(Request const & request, Server const * server, Config con
 
 		}
 
-		std::cout << "target: " << _target << std::endl;
+		std::cout << timestamp() << "target: " << _target << std::endl;
 
 		if (isDirectory(_target)) {
 
@@ -124,7 +124,7 @@ void Response::handle(Request const & request, Server const * server, Config con
 
 					}
 
-					std::cout << BYEL << "status 200 (directory listing)" << CRESET << std::endl;
+					std::cout << timestamp() << BYEL << "status 200 (directory listing)" << CRESET << std::endl;
 					_response += request.getVersion() + ' ' + OK + "\r\n";
 					_response += "Content-Length: ";
 					_response += SSTR(payload.length()) + "\r\n";
@@ -135,7 +135,7 @@ void Response::handle(Request const & request, Server const * server, Config con
 				}
 
 			} else {
-				std::cout << BYEL << "status 403 (" << _target << ')' << CRESET << std::endl;
+				std::cout << timestamp() << BYEL << "status 403 (" << _target << ')' << CRESET << std::endl;
 				responseMaker(server, "403", FORBIDDEN);
 			}
 
@@ -146,12 +146,12 @@ void Response::handle(Request const & request, Server const * server, Config con
 
 			if (isCGI(extension, server->cgi) and _target[_target.length() - 1] != '/') {
 
-				std::cout << UCYN << "CGI " << extension << " ---> " << server->cgi.at(extension) << CRESET << std::endl;
+				std::cout << timestamp() << UCYN << "CGI " << extension << " ---> " << server->cgi.at(extension) << CRESET << std::endl;
 				CGIMaker(server, extension, _target, OK);
 
 			} else {
 
-				std::cout << BYEL << "status 200 (" << _target << ')' << CRESET << std::endl;
+				std::cout << timestamp() << BYEL << "status 200 (" << _target << ')' << CRESET << std::endl;
 				_response += request.getVersion() + ' ' + OK + "\r\n";
 
 				std::string payload = readFile(_target);
@@ -176,7 +176,7 @@ void Response::handle(Request const & request, Server const * server, Config con
 
 			}
 		} else {
-			std::cout << BYEL << "status 404 (" << _target << ')' << CRESET << std::endl;
+			std::cout << timestamp() << BYEL << "status 404 (" << _target << ')' << CRESET << std::endl;
 			responseMaker(server, "404", NOT_FOUND);
 		}
 
@@ -200,7 +200,7 @@ void Response::handle(Request const & request, Server const * server, Config con
 				upload << content.substr(content.find("\r\n\r\n") + 4);
 
 			} // ? Quand noah est en train de cook sérieusment, il ne faut pas le déranger
-			std::cout << BYEL << "status 201 (" << uri << ')' << CRESET << std::endl;
+			std::cout << timestamp() << BYEL << "status 201 (" << uri << ')' << CRESET << std::endl;
 			responseMaker(server, "201", CREATED);
 		}
 
@@ -217,16 +217,16 @@ void Response::handle(Request const & request, Server const * server, Config con
 		std::string folder = uri.substr(0, uri.find_last_of('/'));
 
 		if (remove(target.c_str()) == -1) {
-			std::cout << BYEL << "status 404 (" << target << ')' << CRESET << std::endl;
+			std::cout << timestamp() << BYEL << "status 404 (" << target << ')' << CRESET << std::endl;
 			responseMaker(server, "404", NOT_FOUND);
 
 		} else {
-			std::cout << BYEL << "status 204 (" << target << ")" << CRESET << std::endl;
+			std::cout << timestamp() << BYEL << "status 204 (" << target << ")" << CRESET << std::endl;
 			_response += request.getVersion() + ' ' + NO_CONTENT + "\r\n\r\n";
 		}
 
 	} else {
-		std::cout << BYEL << "status 403" << CRESET << std::endl;
+		std::cout << timestamp() << BYEL << "status 403" << CRESET << std::endl;
 		responseMaker(server, "403", FORBIDDEN);
 	}
 }
@@ -295,7 +295,7 @@ void Response::CGIMaker(Server const * server, std::string const & extension, st
 		waitpid(pid, &status, 0);
 		if (WIFEXITED(status) and WEXITSTATUS(status) == 0) {
 
-			std::cout << BYEL << "status " << statusHeader.substr(0, 3) << " (cgi)" << CRESET << std::endl;
+			std::cout << timestamp() << BYEL << "status " << statusHeader.substr(0, 3) << " (cgi)" << CRESET << std::endl;
 
 			_response += std::string("HTTP/1.1 ") + statusHeader + "\r\n";
 			_response += "Content-Length: ";
@@ -305,11 +305,11 @@ void Response::CGIMaker(Server const * server, std::string const & extension, st
 
 		} else if (WIFSIGNALED(status) && WTERMSIG(status) == SIGALRM) {
 			kill(pid, SIGKILL);
-			std::cout << BYEL << "status 504 (" << target << ')' << CRESET << std::endl;
+			std::cout << timestamp() << BYEL << "status 504 (" << target << ')' << CRESET << std::endl;
 			responseMaker(server, "504", GATEWAY_TIMEOUT);
 
 		} else {
-			std::cout << BYEL << "status 500 (" << target << ')' << CRESET << std::endl;
+			std::cout << timestamp() << BYEL << "status 500 (" << target << ')' << CRESET << std::endl;
 			responseMaker(server, "500", INTERNAL_ERROR);
 		}
 
@@ -323,7 +323,7 @@ void Response::write() {
 	}
 	_response.erase(0, bytes_sent);
 	if (_response.empty()) _finished = true;
-	// std::cout << BHBLU << bytes_sent << " bytes sent" << std::endl;
+	// std::cout << timestamp() << BHBLU << bytes_sent << " bytes sent" << std::endl;
 }
 
 bool const & Response::isFinished() const {

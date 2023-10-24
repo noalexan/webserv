@@ -12,6 +12,7 @@ bool running = true;
 
 void stop(int) {
 	running = false;
+	std::cout << std::endl;
 }
 
 #ifdef __linux__
@@ -61,10 +62,12 @@ void launch(Config const &config) {
 		fd_set tmp_except_fds = except_fds;
 
 		tv.tv_sec = 0;
-		tv.tv_usec = 0;
+		tv.tv_usec = 100;
 
 		if (select(max_fd + 1, &tmp_read_fds, &tmp_write_fds, &tmp_except_fds, &tv) == -1) {
-			std::cerr << "select() failed" << std::endl;
+			if (running) {
+				std::cerr << timestamp() << "[!] select() failed" << std::endl;
+			}
 			continue;
 		}
 
@@ -80,7 +83,7 @@ void launch(Config const &config) {
 					int client_fd = accept(address->fd, (sockaddr *) &address->address, &addrlen);
 
 					if (client_fd == -1) {
-						std::cerr << "accept() failed" << std::endl;
+						std::cerr << timestamp() << "[!] accept() failed" << std::endl;
 						continue;
 					}
 
@@ -97,19 +100,7 @@ void launch(Config const &config) {
 
 					FD_SET(client_fd, &read_fds);
 
-					std::cout << "new client (" << client_fd << ")" << std::endl;
-
-				}
-
-				else if (FD_ISSET(address->fd, &tmp_write_fds)) {
-
-					std::cout << "server wfds" << std::endl;
-
-				}
-
-				else if (FD_ISSET(address->fd, &tmp_except_fds)) {
-
-					std::cout << "server efds" << std::endl;
+					std::cout << timestamp() << "new client (" << client_fd << ")" << std::endl;
 
 				}
 
@@ -136,7 +127,7 @@ void launch(Config const &config) {
 					FD_CLR(client_fd, &read_fds);
 					FD_SET(client_fd, &write_fds);
 
-					std::cout << BMAG << "client timed out" << CRESET << std::endl;
+					std::cout << timestamp() << BMAG << "client timed out" << CRESET << std::endl;
 				} else if (FD_ISSET(client_fd, &tmp_read_fds)) {
 
 					if (client.request.read(client.server->max_client_body_size) == 0) { // EOF
@@ -146,23 +137,29 @@ void launch(Config const &config) {
 						if (close(client_fd) == -1) throw std::runtime_error("close() failed");
 						clients.erase(client_fd);
 
-						std::cout << BMAG << "disconnect (" << client_fd << ")" << CRESET << std::endl;
+						std::cout << timestamp() << BMAG << "disconnect (" << client_fd << ")" << CRESET << std::endl;
 
 					}
 
 					else if (client.request.isFinished()) {
 
 						if (client.request.isTooLarge()) {
-							std::cout << BYEL << "status 413" << CRESET << std::endl;
+							std::cout << timestamp() << BYEL << "status 413" << CRESET << std::endl;
 							client.response.responseMaker(client.server, "413", PAYLOAD_TOO_LARGE);
 						} else {
 							try {
 								client.request.parse(client.server);
+							} catch (std::exception const &e) {
+								std::cerr << timestamp() << "[!] " << e.what() << std::endl;
+								std::cout << timestamp() << BYEL << "status 400" << CRESET << std::endl;
+								client.response.responseMaker(client.server, "400", BAD_REQUEST);
+							}
+							try {
 								client.response.handle(client.request, client.server, config, false);
 							} catch (std::exception const &e) {
-								std::cerr << e.what() << std::endl;
-								std::cout << BYEL << "status 400" << CRESET << std::endl;
-								client.response.responseMaker(client.server, "400", BAD_REQUEST);
+								std::cerr << timestamp() << "[!] " << e.what() << std::endl;
+								std::cout << timestamp() << BYEL << "status 500" << CRESET << std::endl;
+								client.response.responseMaker(client.server, "500", BAD_REQUEST);
 							}
 						}
 
@@ -183,19 +180,19 @@ void launch(Config const &config) {
 						if (close(client_fd) == -1) throw std::runtime_error("close() failed");
 						clients.erase(client_fd);
 
-						std::cout << BMAG << "connection closed (" << client_fd << ")" << CRESET << std::endl;
+						std::cout << timestamp() << BMAG << "connection closed (" << client_fd << ")" << CRESET << std::endl;
 
 					}
 
 				}
 
 			} catch (std::exception const & e) {
-				std::cout << "client deleted" << std::endl;
+				std::cout << timestamp() << "client deleted" << std::endl;
 				close(client_fd);
 				FD_CLR(client_fd, &read_fds);
 				if (FD_ISSET(client_fd, &write_fds)) FD_CLR(client_fd, &write_fds);
 				clients.erase(client_fd);
-				std::cerr << e.what() << std::endl;
+				std::cerr << timestamp() << "[!] " << e.what() << std::endl;
 			}
 
 		}
@@ -203,7 +200,7 @@ void launch(Config const &config) {
 	}
 
 	for (std::map<int, Client>::const_iterator client = clients.begin(); client != clients.end(); client++) {
-		std::cout << BMAG << "connection closed (" << client->first << ")" << CRESET << std::endl;
+		std::cout << timestamp() << BMAG << "connection closed (" << client->first << ")" << CRESET << std::endl;
 		close(client->first);
 	}
 
@@ -246,7 +243,7 @@ void launch(Config const &config) {
 		timeout.tv_nsec = 0;
 
 		if ((nev = kevent(kq, NULL, 0, events, MAX_EVENTS, &timeout)) == -1) {
-			std::cerr << "kevent() failed" << std::endl;
+			std::cerr << timestamp() << "[!] kevent() failed" << std::endl;
 			continue;
 		}
 
@@ -270,7 +267,7 @@ void launch(Config const &config) {
 
 					clients.erase(events[i].ident);
 
-					std::cout << BMAG << "disconnect" << CRESET << std::endl;
+					std::cout << timestamp() << BMAG << "disconnect" << CRESET << std::endl;
 
 				}
 				
@@ -280,7 +277,7 @@ void launch(Config const &config) {
 					for (std::vector<Address>::const_iterator address = server->addresses.begin(); address != server->addresses.end() and not isServer; address++) {
 						if (address->fd == (int) events[i].ident) {
 
-							std::cout << "receiving request from server '" << server->servername << '\'' << std::endl;
+							std::cout << timestamp() << "receiving request from server '" << server->servername << '\'' << std::endl;
 							isServer = true;
 
 							sockaddr_in client_address;
@@ -317,7 +314,7 @@ void launch(Config const &config) {
 
 							clients[client_fd] = client;
 
-							std::cout << BGRN << "new client" << CRESET << std::endl;
+							std::cout << timestamp() << BGRN << "new client" << CRESET << std::endl;
 						}
 					}
 				}
@@ -350,7 +347,7 @@ void launch(Config const &config) {
 								if (kevent(kq, &changes, 1, NULL, 0, &timeout) == -1) throw std::runtime_error("kevent() failed");
 
 								if (clients[events[i].ident].request.isTooLarge()) {
-									std::cout << BYEL << "status 413" << CRESET << std::endl;
+									std::cout << timestamp() << BYEL << "status 413" << CRESET << std::endl;
 									clients[events[i].ident].response.responseMaker(clients[events[i].ident].server, "413", PAYLOAD_TOO_LARGE);
 								} else {
 									clients[events[i].ident].request.parse(clients[events[i].ident].server);
@@ -374,7 +371,7 @@ void launch(Config const &config) {
 								if (close(events[i].ident) == -1) throw std::runtime_error("close() failed");
 								clients.erase(events[i].ident);
 
-								std::cout << BMAG << "connection closed" << CRESET << std::endl;
+								std::cout << timestamp() << BMAG << "connection closed" << CRESET << std::endl;
 
 							}
 							break;
@@ -401,15 +398,17 @@ void launch(Config const &config) {
 							EV_SET(&changes, events[i].ident, EVFILT_WRITE, EV_ADD, 0, 0, NULL);
 							if (kevent(kq, &changes, 1, NULL, 0, &timeout) == -1) throw std::runtime_error("kevent() failed");
 
-							std::cout << BMAG << "client timed out" << CRESET << std::endl;
+							std::cout << timestamp() << BMAG << "client timed out" << CRESET << std::endl;
 							break;
 
 					}
 				}
 
 			} catch (std::exception &e) {
-				std::cout << "client deleted" << std::endl;
-				close(events[i].ident);
+				std::cout << timestamp() << "client deleted" << std::endl;
+				if (close(events[i].ident) == -1) {
+					std::cerr << "[!] close() failed" << std::endl;
+				}
 
 				timeout.tv_sec = 5;
 				timeout.tv_nsec = 0;
@@ -418,7 +417,7 @@ void launch(Config const &config) {
 				if (kevent(kq, &changes, 1, NULL, 0, &timeout) == -1) throw std::runtime_error("kevent() failed");
 
 				clients.erase(events[i].ident);
-				std::cerr << e.what() << std::endl;
+				std::cerr << timestamp() << "[!] " << e.what() << std::endl;
 			}
 
 		}
@@ -426,7 +425,7 @@ void launch(Config const &config) {
 	}
 
 	for (std::map<int, Client>::const_iterator client = clients.begin(); client != clients.end(); client++) {
-		std::cout << BMAG << "connection closed (" << client->first << ")" << CRESET << std::endl;
+		std::cout << timestamp() << BMAG << "connection closed (" << client->first << ")" << CRESET << std::endl;
 		close(client->first);
 	}
 

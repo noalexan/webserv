@@ -5,8 +5,17 @@
 #include <unistd.h>
 #include <utils/Colors.hpp>
 #include <cstdlib>
+#include <math.h>
+#include <utils/utils.hpp>
 
 #define BUFFER_SIZE 10240
+
+static unsigned int atoi16(char const * str, size_t lenght) {
+	if (lenght <= 0) return 0;
+	if (('0' > *str or *str > '9') and ('a' > *str or *str > 'f'))
+		throw std::runtime_error("invalid hexadecimal value");
+	return (('0' <= *str and *str <= '9') ? *str - '0' : *str - 'a') * pow(16, lenght) + atoi16(str + 1, lenght - 1);
+}
 
 Request::Request(): _finished(false), _payload_too_large(false) {}
 
@@ -49,7 +58,7 @@ size_t Request::read(size_t const & max_body_size)  {
 
 	}
 
-	// std::cout << BHBLU << bytes_read << " bytes read" << std::endl;
+	// std::cout << timestamp() << BHBLU << bytes_read << " bytes read" << std::endl;
 
 	return bytes_read;
 
@@ -73,8 +82,12 @@ void Request::parse(Server const * server) {
 
 	_uri = line.substr(0, line.find(' '));
 
-	while (_uri.find("%20") != std::string::npos) {
-		_uri.replace(_uri.find("%20"), 3, " ");
+	size_t pos;
+	while ((pos = _uri.find('%')) != std::string::npos) {
+		if (_uri.length() < pos + 3) {
+			throw std::runtime_error("invalid hexadecimal value");
+		}
+		_uri.replace(pos, 3, SSTR((unsigned char) atoi16(_uri.c_str() + pos + 1, 2)));
 	}
 
 	if (_uri.length() == 0) {
@@ -118,12 +131,12 @@ void Request::parse(Server const * server) {
 
 	std::string locationPath(_uri);
 
-	std::cout << "looking for location: " << locationPath << std::endl;
+	std::cout << timestamp() << "looking for location: " << locationPath << std::endl;
 	while (server->locations.find(locationPath) == server->locations.end()) {
 		if (locationPath == "/") break;
 		locationPath = locationPath.substr(0, locationPath.find_last_of('/'));
 		if (locationPath.empty()) locationPath = "/";
-		std::cout << "looking for location: " << locationPath << std::endl;
+		std::cout << timestamp() << "looking for location: " << locationPath << std::endl;
 	}
 
 	try {
